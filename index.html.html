@@ -395,7 +395,7 @@ html[data-role="technician"] nav button {
 <section id="telaLogin" class="login-screen">
   <div class="login-box">
 
-    <img id="logoLogin" src="logo/logo.png" alt="Logo ONLINE" onerror="this.style.display='none'">
+    <img id="logoLogin" src="logo.png" alt="Logo ONLINE" onerror="this.style.display='none'">
     <h2>ONLINE – Eletroeletrônica</h2>
     <p>Relatórios técnicos com fotos, vídeos e envio em tempo real.</p>
 
@@ -439,7 +439,7 @@ html[data-role="technician"] nav button {
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="logo-app">
-        <img id="logoSidebar" src="logo/logo.png" alt="Logo" onerror="this.style.display='none'">
+        <img id="logoSidebar" src="logo.png" alt="Logo" onerror="this.style.display='none'">
         <div>
           <strong>ONLINE</strong>
           <small>Eletroeletrônica</small>
@@ -1634,6 +1634,13 @@ html[data-role="technician"] nav button {
       }
     } catch (e) {
       console.error("Erro em syncUsuariosFromFirestore:", e);
+      // Mostra erro visível na tela de Cadastros para facilitar diagnóstico
+      try {
+        const tbody = document.querySelector('#tabelaUsuarios tbody');
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="5" style="color:#dc2626;padding:12px;font-size:.8rem;">⚠️ Erro ao carregar usuários do Firestore: ' + esc(String(e.message || e.code || e)) + '<br>Verifique as Regras de Segurança do Firestore e se o domínio está autorizado no Firebase Auth.</td></tr>';
+        }
+      } catch(_) {}
     }
   }
   
@@ -2162,7 +2169,7 @@ html[data-role="technician"] nav button {
         resolve(canvas.toDataURL('image/png'));
       };
       img.onerror = ()=>resolve(null);
-      img.src = 'logo/logo.png';
+      img.src = 'logo.png';
     });
   }
   window.logoPromise = loadLogoBase64().then(b64 => { logoBase64 = b64; return b64; });
@@ -2857,7 +2864,18 @@ function autoFillCamposAtendimento(){
 
     if (navigator.onLine) { syncPendentes(); }
     // Sincroniza TODAS as coleções do Firestore (para qualquer perfil)
-    try{ if (navigator.onLine && typeof syncColecoesFromFirestoreOnLogin === 'function') syncColecoesFromFirestoreOnLogin(); }catch(e){}
+    // Sincroniza e re-renderiza após sync completo
+    if (navigator.onLine && typeof syncColecoesFromFirestoreOnLogin === 'function') {
+      syncColecoesFromFirestoreOnLogin().then(function() {
+        try {
+          if (isSupervisorOrAdmin(window.usuarioLogado)) {
+            renderUsuarios();
+            renderClientes();
+            renderEquipamentos();
+          }
+        } catch(e) {}
+      }).catch(function(e){ console.warn('Sync falhou:', e); });
+    }
 
     if (!isSupervisorOrAdmin(user)){
       mPainel.style.display='none';
@@ -5045,8 +5063,8 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
       try {
         const l1 = document.getElementById('logoLogin');
         const l2 = document.getElementById('logoSidebar');
-        if (l1) { l1.src='logo/logo.png'; }
-        if (l2) { l2.src='logo/logo.png'; }
+        if (l1) { l1.src='logo.png'; }
+        if (l2) { l2.src='logo.png'; }
       } catch(e){}
       showToast('Logo removida.');
     } catch(e){}
@@ -5192,8 +5210,8 @@ function aplicarLogoUI() {
 
     } else {
       // Volta para a logo padrão
-      l1.src = "logo/logo.png";
-      l2.src = "logo/logo.png";
+      l1.src = "logo.png";
+      l2.src = "logo.png";
 
       if (preview) preview.style.display = 'none';
       if (empty) empty.style.display = 'inline';
@@ -6134,8 +6152,8 @@ document.addEventListener('click', function(ev){
         window.logoPromise = Promise.resolve(b64);
       } else {
         // volta para logo padrão
-        if (logoLogin){ logoLogin.src = 'logo/logo.png'; }
-        if (logoSidebar){ logoSidebar.src = 'logo/logo.png'; }
+        if (logoLogin){ logoLogin.src = 'logo.png'; }
+        if (logoSidebar){ logoSidebar.src = 'logo.png'; }
         atualizarPreview(null);
       }
     }catch(e){
