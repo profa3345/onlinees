@@ -1330,6 +1330,7 @@ html[data-role="technician"] nav button {
   const SITE_EMPRESA = "www.onlinees.com.br";
   const WHATSAPP_PADRAO = "552899931598";
   const STORAGE_USERS = 'online-es-usuarios-v3';
+  const AUTH_DOMAIN = 'onlinees.local'; // Domínio usado no Firebase Auth
   const STORAGE_REPORTS = 'online-es-relatorios';
   const STORAGE_PENDENTES = 'online-es-pendentes';
   const STORAGE_CONTADOR = 'online-es-contador';
@@ -1445,11 +1446,11 @@ html[data-role="technician"] nav button {
     if (!db) return;
     if (!colUsuariosFS) colUsuariosFS = collection(db, "onlineEsUsuarios");
 
-    // Usa Firebase uid como doc ID se disponível (para as Security Rules)
-    // Senão usa username como fallback
-    const id = u._firebaseUid || (u.username || u.usuario || "").toLowerCase();
+    // SEGURANÇA: usa SEMPRE o Firebase uid como ID do documento
+    // Sem uid não salva — evita criar documentos com username como ID
+    const id = u._firebaseUid || null;
+    if (!id) { console.warn('salvarUsuarioNoFirestore: uid não disponível, abortando.'); return; }
     const ref = doc(colUsuariosFS, id);
-
     const data = {
       username: u.username || u.usuario || "",
       fullName: u.fullName || u.nome || "",
@@ -1481,9 +1482,16 @@ html[data-role="technician"] nav button {
   async function removerUsuarioDoFirestore(username) {
     if (!db) return;
     if (!colUsuariosFS) colUsuariosFS = collection(db, "onlineEsUsuarios");
-    const id = String(username || "").toLowerCase();
-    const ref = doc(colUsuariosFS, id);
+    // Busca o uid do usuário no array local para usar como ID do documento
     try {
+      const lista = window.usuarios || [];
+      const u = lista.find(x => (x.username || x.usuario || '').toLowerCase() === String(username).toLowerCase());
+      const id = (u && u._firebaseUid) || null;
+      if (!id) {
+        console.warn('removerUsuarioDoFirestore: uid não encontrado para', username);
+        return;
+      }
+      const ref = doc(colUsuariosFS, id);
       await deleteDoc(ref);
     } catch (e) {
       console.warn("Falha ao remover usuário no Firestore:", e);
@@ -1573,7 +1581,8 @@ html[data-role="technician"] nav button {
           active: d.ativo !== false,
           mustChangePassword,
           fromFirestore: true,
-          firestoreId: docRef.id
+          firestoreId: docRef.id,
+          _firebaseUid: docRef.id  // ID do documento = uid do Firebase Auth
         });
       });
 
@@ -5448,8 +5457,34 @@ window.AppStorage = AppStorage;
           role: (perfil === 'supervisor' ? 'supervisor' : 'tecnico'),
           password: '',
           mustChangePassword: true,
-          active: true
+          active: true,
+          ativo: true
         };
+
+        // Cria usuário no Firebase Auth para obter uid
+        try {
+          var _auth = window._firebaseAuth || null;
+          if (_auth && navigator.onLine) {
+            var _emailNovo = user.toLowerCase().replace(/[^a-z0-9._-]/g, '') + '@' + AUTH_DOMAIN;
+            var _senhaTemp = 'Trocar@' + Math.random().toString(36).slice(2, 10);
+            try {
+              var _cred = await _auth.createUserWithEmailAndPassword(_emailNovo, _senhaTemp);
+              novo._firebaseUid = _cred.user.uid;
+              novo._email = _emailNovo;
+            } catch(authErr) {
+              if (authErr.code === 'auth/email-already-in-use') {
+                // Usuário já existe no Auth — busca o uid
+                var _snap = await db.collection('onlineEsUsuarios').where('username', '==', user.toLowerCase()).limit(1).get();
+                if (!_snap.empty) novo._firebaseUid = _snap.docs[0].id;
+              } else {
+                console.warn('Firebase Auth criação falhou:', authErr.code);
+                showToast('⚠️ Erro ao criar no Firebase Auth: ' + authErr.code + '. Usuário salvo apenas localmente.');
+              }
+            }
+          }
+        } catch(e) {
+          console.warn('Falha ao criar usuário no Firebase Auth:', e);
+        }
 
         lista.push(novo);
         window.usuarios = lista;
@@ -5465,12 +5500,12 @@ window.AppStorage = AppStorage;
           console.warn('Falha ao salvar usuários em localStorage:', e);
         }
 
-        // Salva no Firestore se disponível
+        // Salva no Firestore (só se tiver uid)
         try{
-          if (typeof salvarUsuarioNoFirestore === 'function'){
+          if (novo._firebaseUid && typeof salvarUsuarioNoFirestore === 'function'){
             await salvarUsuarioNoFirestore(novo);
-          } else if (window.salvarUsuarioNoFirestore){
-            await window.salvarUsuarioNoFirestore(novo);
+          } else if (!novo._firebaseUid) {
+            console.warn('Usuário criado apenas localmente — uid não disponível.');
           }
         }catch(e){
           console.warn('Falha ao salvar usuário no Firestore:', e);
@@ -6655,7 +6690,6 @@ async function fazerLogin(){
   }
 
   // Domínio para converter username → email no Firebase Auth
-  const AUTH_DOMAIN = 'onlinees.app';
   const emailAuth = u.toLowerCase().replace(/[^a-z0-9._-]/g, '') + '@' + AUTH_DOMAIN;
 
   // ============================================================
@@ -6672,19 +6706,11 @@ async function fazerLogin(){
       console.log('Firebase Auth: login OK, uid:', firebaseUser.uid);
     } catch(authErr) {
       if (authErr.code === 'auth/user-not-found') {
-        // Primeiro login deste usuario no Firebase Auth — cria conta
-        try {
-          var newCred = await firebaseAuth.createUserWithEmailAndPassword(emailAuth, p);
-          firebaseUser = newCred.user;
-          console.log('Firebase Auth: usuario criado, uid:', firebaseUser.uid);
-        } catch(createErr) {
-          if (createErr.code === 'auth/email-already-in-use') {
-            _registerFailedAttempt(u);
-            msgErro.textContent = 'Usuário ou senha inválidos.';
-            return;
-          }
-          console.warn('Firebase Auth criacao falhou:', createErr.code);
-        }
+        // Usuário não existe no Firebase Auth — não cria automaticamente
+        // Criação de usuários é feita apenas pelo admin no painel
+        _registerFailedAttempt(u);
+        msgErro.textContent = 'Usuário ou senha inválidos.';
+        return;
       } else if (authErr.code === 'auth/wrong-password') {
         // Senha errada no Firebase Auth E temos certeza
         // NÃO rejeitar aqui — continuar para validação local como fallback
