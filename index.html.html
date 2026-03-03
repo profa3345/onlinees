@@ -1331,6 +1331,18 @@ html[data-role="technician"] nav button {
   const WHATSAPP_PADRAO = "552899931598";
   const STORAGE_USERS = 'online-es-usuarios-v3';
   const AUTH_DOMAIN = 'onlinees.local'; // Domínio usado no Firebase Auth
+  const FIREBASE_API_KEY = 'AIzaSyBY8hMISkkDIn_-5immIdqFtp4qgqZHwf8';
+  async function criarUsuarioFirebaseREST(email, senha) {
+    try {
+      const resp = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + FIREBASE_API_KEY,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, password: senha, returnSecureToken: true }) });
+      const data = await resp.json();
+      if (data.error) return { uid: null, error: data.error.message };
+      return { uid: data.localId, error: null };
+    } catch(e) { return { uid: null, error: String(e) }; }
+  }
+  window.criarUsuarioFirebaseREST = criarUsuarioFirebaseREST;
   const STORAGE_REPORTS = 'online-es-relatorios';
   const STORAGE_PENDENTES = 'online-es-pendentes';
   const STORAGE_CONTADOR = 'online-es-contador';
@@ -5461,29 +5473,24 @@ window.AppStorage = AppStorage;
           ativo: true
         };
 
-        // Cria usuário no Firebase Auth para obter uid
-        try {
-          var _auth = window._firebaseAuth || null;
-          if (_auth && navigator.onLine) {
-            var _emailNovo = user.toLowerCase().replace(/[^a-z0-9._-]/g, '') + '@' + AUTH_DOMAIN;
-            var _senhaTemp = 'Trocar@' + Math.random().toString(36).slice(2, 10);
+
+        // Cria usuario no Firebase Auth via REST API
+        if (navigator.onLine) {
+          var _emailNovo = user.toLowerCase().replace(/[^a-z0-9._-]/g, '') + '@' + AUTH_DOMAIN;
+          var _senhaTemp = 'Trocar@' + Math.random().toString(36).slice(2, 10);
+          var _restResult = await criarUsuarioFirebaseREST(_emailNovo, _senhaTemp);
+          if (_restResult.uid) {
+            novo._firebaseUid = _restResult.uid;
+            novo._email = _emailNovo;
+          } else if (_restResult.error && _restResult.error.includes('EMAIL_EXISTS')) {
             try {
-              var _cred = await _auth.createUserWithEmailAndPassword(_emailNovo, _senhaTemp);
-              novo._firebaseUid = _cred.user.uid;
-              novo._email = _emailNovo;
-            } catch(authErr) {
-              if (authErr.code === 'auth/email-already-in-use') {
-                // Usuário já existe no Auth — busca o uid
-                var _snap = await db.collection('onlineEsUsuarios').where('username', '==', user.toLowerCase()).limit(1).get();
-                if (!_snap.empty) novo._firebaseUid = _snap.docs[0].id;
-              } else {
-                console.warn('Firebase Auth criação falhou:', authErr.code);
-                showToast('⚠️ Erro ao criar no Firebase Auth: ' + authErr.code + '. Usuário salvo apenas localmente.');
-              }
-            }
+              var _snap = await db.collection('onlineEsUsuarios')
+                .where('username', '==', user.toLowerCase()).limit(1).get();
+              if (!_snap.empty) novo._firebaseUid = _snap.docs[0].id;
+            } catch(e) {}
+          } else {
+            showToast('Aviso: ' + (_restResult.error || 'erro ao criar conta'));
           }
-        } catch(e) {
-          console.warn('Falha ao criar usuário no Firebase Auth:', e);
         }
 
         lista.push(novo);
