@@ -424,7 +424,18 @@ html[data-role="technician"] nav button {
     <h3>Definir senha</h3>
     <p>Este é seu primeiro acesso. Defina uma senha para este usuário.</p>
     <label>Nova senha</label>
-    <input type="password" id="novaSenha">
+    <input type="password" id="novaSenha" oninput="atualizarForcaSenha(this.value)" autocomplete="new-password">
+    <div id="forcaSenhaBar" style="margin-top:6px;height:6px;border-radius:4px;background:#e2e8f0;overflow:hidden;">
+      <div id="forcaSenhaFill" style="height:100%;width:0%;transition:width .3s,background .3s;"></div>
+    </div>
+    <div id="forcaSenhaTexto" style="font-size:.75rem;margin-top:3px;color:#64748b;"></div>
+    <ul style="font-size:.75rem;color:#64748b;margin:6px 0 4px 0;padding-left:1.2em;line-height:1.7;">
+      <li>Mínimo 8 caracteres</li>
+      <li>Uma letra maiúscula (A-Z)</li>
+      <li>Uma letra minúscula (a-z)</li>
+      <li>Um número (0-9)</li>
+      <li>Um caractere especial (@, #, !, $, %...)</li>
+    </ul>
     <label style="margin-top:6px;">Confirmar senha</label>
     <input type="password" id="novaSenha2">
     <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
@@ -1343,6 +1354,33 @@ html[data-role="technician"] nav button {
     } catch(e) { return { uid: null, error: String(e) }; }
   }
   window.criarUsuarioFirebaseREST = criarUsuarioFirebaseREST;
+
+  // Indicador visual de forca de senha
+  window.atualizarForcaSenha = function(val) {
+    var bar = document.getElementById('forcaSenhaFill');
+    var txt = document.getElementById('forcaSenhaTexto');
+    var btn = document.getElementById('btnSalvarSenha');
+    if (!bar || !txt) return;
+    var score = 0;
+    if (val.length >= 8) score++;
+    if (/[A-Z]/.test(val)) score++;
+    if (/[a-z]/.test(val)) score++;
+    if (/[0-9]/.test(val)) score++;
+    if (/[^A-Za-z0-9]/.test(val)) score++;
+    var cores = ['#ef4444','#f97316','#eab308','#84cc16','#22c55e'];
+    var textos = ['Muito fraca — use maiúscula, número e símbolo','Fraca — adicione mais requisitos','Razoável — quase lá!','Boa','Forte ✓'];
+    bar.style.width = (score * 20) + '%';
+    bar.style.background = cores[score-1] || '#e2e8f0';
+    txt.textContent = score > 0 ? textos[score-1] : '';
+    txt.style.color = cores[score-1] || '#64748b';
+    // Bloqueia botão Salvar enquanto senha não é forte o suficiente (score < 5)
+    if (btn) {
+      btn.disabled = score < 5;
+      btn.style.opacity = score < 5 ? '0.4' : '1';
+      btn.style.cursor = score < 5 ? 'not-allowed' : 'pointer';
+      btn.title = score < 5 ? 'A senha deve atender todos os requisitos' : '';
+    }
+  };
   const STORAGE_REPORTS = 'online-es-relatorios';
   const STORAGE_PENDENTES = 'online-es-pendentes';
   const STORAGE_CONTADOR = 'online-es-contador';
@@ -1493,18 +1531,35 @@ html[data-role="technician"] nav button {
 
   async function removerUsuarioDoFirestore(username) {
     if (!db) return;
-    if (!colUsuariosFS) colUsuariosFS = collection(db, "onlineEsUsuarios");
-    // Busca o uid do usuário no array local para usar como ID do documento
     try {
+      // 1. Tenta pelo uid no array local
       const lista = window.usuarios || [];
       const u = lista.find(x => (x.username || x.usuario || '').toLowerCase() === String(username).toLowerCase());
-      const id = (u && u._firebaseUid) || null;
+      let id = (u && u._firebaseUid) || null;
+
+      // 2. Se não encontrou uid local, busca direto no Firestore pelo campo username (API compat)
+      if (!id && db) {
+        console.warn('removerUsuarioDoFirestore: uid local não encontrado, buscando no Firestore...');
+        const snap = await db.collection('onlineEsUsuarios')
+          .where('username', '==', String(username).toLowerCase()).limit(1).get();
+        if (!snap.empty) {
+          id = snap.docs[0].id;
+          console.log('removerUsuarioDoFirestore: uid encontrado no Firestore:', id);
+        }
+      }
+
+      // 3. Tenta também pelo campo usuario (legado)
+      if (!id && db) {
+        const snap2 = await db.collection('onlineEsUsuarios')
+          .where('usuario', '==', String(username).toLowerCase()).limit(1).get();
+        if (!snap2.empty) id = snap2.docs[0].id;
+      }
+
       if (!id) {
-        console.warn('removerUsuarioDoFirestore: uid não encontrado para', username);
+        console.warn('removerUsuarioDoFirestore: usuario nao encontrado no Firestore:', username);
         return;
       }
-      const ref = doc(colUsuariosFS, id);
-      await deleteDoc(ref);
+      await db.collection('onlineEsUsuarios').doc(id).delete();
     } catch (e) {
       console.warn("Falha ao remover usuário no Firestore:", e);
     }
@@ -2718,17 +2773,17 @@ function autoFillCamposAtendimento(){
   btnCancelarSenha.onclick = ()=>modalSenha.classList.add('hidden');
   btnSalvarSenha.onclick = async ()=>{
     try {
+    if (!userMustSetPassword) userMustSetPassword = window._userMustSetPassword || null;
     if (!userMustSetPassword) return;
     const s1 = (novaSenha.value || '').trim();
     const s2 = (novaSenha2.value || '').trim();
-    if (!s1 || s1.length < 4){
-      alert('Senha muito curta. Use pelo menos 4 caracteres.');
-      return;
-    }
-    if (s1 !== s2){
-      alert('As senhas não conferem.');
-      return;
-    }
+    // Validação de senha forte
+    if (!s1 || s1.length < 8) { alert('Senha muito curta. Mínimo 8 caracteres.'); return; }
+    if (!/[A-Z]/.test(s1)) { alert('A senha precisa ter pelo menos uma letra MAIÚSCULA.'); return; }
+    if (!/[a-z]/.test(s1)) { alert('A senha precisa ter pelo menos uma letra minúscula.'); return; }
+    if (!/[0-9]/.test(s1)) { alert('A senha precisa ter pelo menos um número.'); return; }
+    if (!/[^A-Za-z0-9]/.test(s1)) { alert('A senha precisa ter pelo menos um caractere especial (@, #, !, $, %).'); return; }
+    if (s1 !== s2) { alert('As senhas não conferem.'); return; }
     const secure = await createSecureHash(s1);
     const { lista, usuario: u } = encontrarUsuario(userMustSetPassword.username || userMustSetPassword.usuario);
     if (u) {
@@ -3299,18 +3354,43 @@ function autoFillCamposAtendimento(){
       console.warn('Erro ao recarregar usuários:', e);
     }
 
+    // Salva referencia antes de remover (para deletar do Firebase Auth depois)
+    window._lastRemovedUser = (Array.isArray(usuarios) ? usuarios : []).find(x => x && x.username === user) || null;
     usuarios = (Array.isArray(usuarios) ? usuarios : []).filter(x => x && x.username !== user);
     saveUsers(usuarios);
     renderUsuarios();
     showToast('Usuário removido com sucesso!');
     try { logInfo('Usuário removido', { usuario: user, por: (window.usuarioLogado && window.usuarioLogado.username) || 'admin' }); } catch(e){}
 
+    // Remove do Firestore usando uid (não username)
     try{
-      if (typeof colUsuariosFS !== 'undefined' && typeof deleteDoc === 'function' && typeof doc === 'function') {
-        await deleteDoc(doc(colUsuariosFS, String(user).toLowerCase()));
+      if (typeof removerUsuarioDoFirestore === 'function') {
+        await removerUsuarioDoFirestore(user);
       }
     }catch(e){
-      console.warn('Falha ao remover usuário no Firestore:', e);
+      console.warn('Falha ao remover usuario no Firestore:', e);
+    }
+
+    // Remove do Firebase Authentication via REST API
+    try {
+      const uRemovido = (window._usuariosRemovidos || []).find(x => (x.username||'').toLowerCase() === user.toLowerCase());
+      const emailRemover = user.toLowerCase().replace(/[^a-z0-9._-]/g,'') + '@' + (typeof AUTH_DOMAIN !== 'undefined' ? AUTH_DOMAIN : 'onlinees.local');
+      // Deleta via REST (requer token do usuario logado — usa o token do admin atual)
+      const _fbAuth = window._firebaseAuth || firebase.auth();
+      if (_fbAuth && _fbAuth.currentUser) {
+        const token = await _fbAuth.currentUser.getIdToken();
+        // Busca o uid do usuario removido
+        const uObj = (window._lastRemovedUser) || null;
+        if (uObj && uObj._firebaseUid) {
+          await fetch('https://identitytoolkit.googleapis.com/v1/accounts:delete?key=' + FIREBASE_API_KEY, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken: token })
+          });
+        }
+      }
+    } catch(e){
+      console.warn('Aviso: usuario removido do sistema mas pode ainda existir no Firebase Auth:', e);
     }
   }
 function renderUsuarios(){
@@ -6548,10 +6628,8 @@ document.addEventListener('click', function(ev){
         try { if (window._firebaseAuth) window._firebaseAuth.signOut(); } catch(e){}
         try { window.usuarioLogado = null; } catch(e){}
         try { document.documentElement.removeAttribute('data-role'); } catch(e){}
-        var app = document.getElementById('app');
-        var telaLogin = document.getElementById('telaLogin');
-        if (app) app.style.display = 'none';
-        if (telaLogin) telaLogin.style.display = 'flex';
+        // Recarrega a pagina — garante volta para tela de login em qualquer situacao
+        window.location.reload();
       });
     }
   }catch(e){
@@ -6920,6 +6998,32 @@ async function fazerLogin(){
   msgErro.style.display = 'none';
 
   _clearLoginAttempts(u);
+
+  // Se precisa definir senha, mostra modal ANTES de entrar no sistema
+  if (usuarioSanitizado.mustChangePassword) {
+    try {
+      var _modalSenha = document.getElementById('modalSenha');
+      var _btnSalvar  = document.getElementById('btnSalvarSenha');
+      var _novaSenha  = document.getElementById('novaSenha');
+      var _novaSenha2 = document.getElementById('novaSenha2');
+      if (_modalSenha) {
+        // Limpa campos e desabilita botão
+        if (_novaSenha)  _novaSenha.value  = '';
+        if (_novaSenha2) _novaSenha2.value = '';
+        if (_btnSalvar)  { _btnSalvar.disabled = true; _btnSalvar.style.opacity = '0.4'; _btnSalvar.style.cursor = 'not-allowed'; }
+        // Atualiza barra de força
+        if (typeof window.atualizarForcaSenha === 'function') window.atualizarForcaSenha('');
+        // Salva referência do usuario que precisa definir senha
+        if (typeof userMustSetPassword !== 'undefined') userMustSetPassword = achou;
+        window._userMustSetPassword = achou;
+        // Mostra modal
+        _modalSenha.classList.remove('hidden');
+        // NÃO entra no sistema ainda — espera definir senha
+        return;
+      }
+    } catch(e) { console.warn('Falha ao abrir modal de senha:', e); }
+  }
+
   try {
     if (typeof entrarSistema === 'function') {
       entrarSistema(usuarioSanitizado);
