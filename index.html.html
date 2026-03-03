@@ -1494,38 +1494,30 @@ html[data-role="technician"] nav button {
   // ===== Helpers de sincronização e salvamento no Firestore =====
   async function salvarUsuarioNoFirestore(u) {
     if (!db) return;
-    if (!colUsuariosFS) colUsuariosFS = collection(db, "onlineEsUsuarios");
-
     // SEGURANÇA: usa SEMPRE o Firebase uid como ID do documento
-    // Sem uid não salva — evita criar documentos com username como ID
     const id = u._firebaseUid || null;
     if (!id) { console.warn('salvarUsuarioNoFirestore: uid não disponível, abortando.'); return; }
-    const ref = doc(colUsuariosFS, id);
-    const data = {
-      username: u.username || u.usuario || "",
-      fullName: u.fullName || u.nome || "",
-      role: u.role || "tecnico",
-      active: u.active !== false,
-      ativo: u.active !== false,
-      mustChangePassword: !!u.mustChangePassword,
-      createdAt: u.createdAt || serverTimestamp(),
-      updatedAt: serverTimestamp(),
-
-      // CAMPOS LEGADOS
-      usuario: u.username || u.usuario || "",
-      nome: u.fullName || u.nome || "",
-      precisaSenha: !!u.mustChangePassword,
-
-      // Hash+salt para login em outros dispositivos (nunca texto plano)
-      _passwordHash: (u._salt && u.password) ? u.password : null,
-      _salt: u._salt || null,
-
-      // Firebase Auth uid (para as Security Rules)
-      _firebaseUid: u._firebaseUid || null,
-      _email: u._email || null
-    };
-
-    return setDoc(ref, data, { merge: true });
+    try {
+      await db.collection('onlineEsUsuarios').doc(id).set({
+        username: u.username || u.usuario || '',
+        fullName: u.fullName || u.nome || '',
+        role: u.role || 'tecnico',
+        active: u.active !== false,
+        ativo: u.active !== false,
+        mustChangePassword: !!u.mustChangePassword,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        // Campos legados
+        usuario: u.username || u.usuario || '',
+        nome: u.fullName || u.nome || '',
+        precisaSenha: !!u.mustChangePassword,
+        // Hash+salt
+        _passwordHash: (u._salt && u.password) ? u.password : null,
+        _salt: u._salt || null,
+        // Firebase Auth uid
+        _firebaseUid: u._firebaseUid || null,
+        _email: u._email || null
+      }, { merge: true });
+    } catch(e) { console.warn('Falha ao salvar usuario no Firestore:', e); }
   }
   window.salvarUsuarioNoFirestore = salvarUsuarioNoFirestore;
 
@@ -1568,44 +1560,42 @@ html[data-role="technician"] nav button {
 
   async function salvarClienteNoFirestore(c) {
     if (!db) return;
-    if (!colClientesFS) colClientesFS = collection(db, "onlineEsClientes");
-    const idBase = (c.nome || "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-");
-    const id = idBase || ("cli-" + Date.now());
-    const ref = doc(colClientesFS, id);
-    const data = {
-      nome: c.nome || "",
-      cnpj: c.cnpj || "",
-      telefone: c.telefone || "",
-      cep: c.cep || "",
-      endereco: c.endereco || "",
-      bairro: c.bairro || "",
-      cidade: c.cidade || "",
-      uf: c.uf || "",
-      ativo: c.ativo !== false,
-      updatedAt: serverTimestamp()
-    };
-    return setDoc(ref, data, { merge: true });
+    try {
+      const idBase = (c.nome || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
+      const id = idBase || ('cli-' + Date.now());
+      await db.collection('onlineEsClientes').doc(id).set({
+        nome: c.nome || '',
+        cnpj: c.cnpj || '',
+        telefone: c.telefone || '',
+        cep: c.cep || '',
+        endereco: c.endereco || '',
+        bairro: c.bairro || '',
+        cidade: c.cidade || '',
+        uf: c.uf || '',
+        ativo: c.ativo !== false,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch(e) { console.warn('Falha ao salvar cliente no Firestore:', e); }
   }
   window.salvarClienteNoFirestore = salvarClienteNoFirestore;
 
   async function salvarEquipamentoNoFirestore(eq) {
     if (!db) return;
-    if (!colEquipamentosFS) colEquipamentosFS = collection(db, "onlineEsEquipamentos");
-    const id = String(eq.id || Date.now());
-    const ref = doc(colEquipamentosFS, id);
-    const data = {
-      id: id,
-      tipo: eq.tipo || "",
-      marca: eq.marca || "",
-      modelo: eq.modelo || "",
-      serie: eq.serie || "",
-      kva: eq.kva || "",
-      local: eq.local || "",
-      obs: eq.obs || "",
-      estoque: (typeof eq.estoque === "number" && !isNaN(eq.estoque)) ? eq.estoque : null,
-      updatedAt: serverTimestamp()
-    };
-    return setDoc(ref, data, { merge: true });
+    try {
+      const id = String(eq.id || Date.now());
+      await db.collection('onlineEsEquipamentos').doc(id).set({
+        id: id,
+        tipo: eq.tipo || '',
+        marca: eq.marca || '',
+        modelo: eq.modelo || '',
+        serie: eq.serie || '',
+        kva: eq.kva || '',
+        local: eq.local || '',
+        obs: eq.obs || '',
+        estoque: (typeof eq.estoque === 'number' && !isNaN(eq.estoque)) ? eq.estoque : null,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch(e) { console.warn('Falha ao salvar equipamento no Firestore:', e); }
   }
   window.salvarEquipamentoNoFirestore = salvarEquipamentoNoFirestore;
 
@@ -3465,10 +3455,10 @@ function renderUsuarios(){
       renderUsuarios();
       showToast('Usuário removido com sucesso!');
 
-      // Remove também no Firestore
+      // Remove do Firestore pelo uid (correto)
       try{
-        if (typeof colUsuariosFS !== 'undefined' && typeof deleteDoc === 'function' && typeof doc === 'function') {
-          await deleteDoc(doc(colUsuariosFS, String(user).toLowerCase()));
+        if (typeof removerUsuarioDoFirestore === 'function') {
+          await removerUsuarioDoFirestore(user);
         }
       }catch(e){
         console.warn('Falha ao remover usuário no Firestore:', e);
@@ -3546,10 +3536,10 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
         renderUsuarios();
         showToast('Usuário removido com sucesso!');
 
-        // Tenta remover também no Firestore (coleção de usuários)
+        // Remove do Firestore pelo uid (correto)
         try{
-          if (typeof colUsuariosFS !== 'undefined' && typeof deleteDoc === 'function' && typeof doc === 'function') {
-            await deleteDoc(doc(colUsuariosFS, String(user).toLowerCase()));
+          if (typeof removerUsuarioDoFirestore === 'function') {
+            await removerUsuarioDoFirestore(user);
           }
         }catch(e){
           console.warn('Falha ao remover usuário no Firestore:', e);
@@ -3631,7 +3621,7 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
     });
 
     document.querySelectorAll('[data-remover-equip]').forEach(btn=>{
-      btn.onclick = ()=>{
+      btn.onclick = async ()=>{
         const id = btn.getAttribute('data-remover-equip');
         if (confirm('Remover equipamento selecionado?')){
           equipamentos = (equipamentos||[]).filter(e=>String(e.id)!==String(id));
@@ -3640,6 +3630,12 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
           popularSelectEquipamentosEstoque();
           showToast && showToast('Equipamento removido.');
           try { logInfo('Equipamento removido', { id: id }); } catch(e){}
+          // Remove do Firestore
+          try {
+            if (db) {
+              await db.collection('onlineEsEquipamentos').doc(String(id)).delete();
+            }
+          } catch(e) { console.warn('Falha ao remover equipamento no Firestore:', e); }
         }
       };
     });
@@ -3709,7 +3705,7 @@ function renderClientes(){
   });
 
   document.querySelectorAll('[data-remover-cliente]').forEach(btn => {
-    btn.onclick = () => {
+    btn.onclick = async () => {
       const nome = btn.getAttribute('data-remover-cliente');
       if (!confirm('Remover cliente "'+nome+'"?')) return;
       clientes = (clientes || []).filter(x => (x.nome || '') !== nome);
@@ -3719,6 +3715,18 @@ function renderClientes(){
       if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa();
       showToast('Cliente removido.');
       try { logInfo('Cliente removido', { nome: nome }); } catch(e){}
+      // Remove do Firestore
+      try {
+        if (db) {
+          // ID gerado pelo nome normalizado (mesmo esquema do salvarClienteNoFirestore)
+          const idBase = nome.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
+          // Tenta deletar pelo ID calculado
+          await db.collection('onlineEsClientes').doc(idBase).delete();
+          // Busca também por campo nome caso o ID seja diferente
+          const snap = await db.collection('onlineEsClientes').where('nome', '==', nome).limit(5).get();
+          snap.forEach(d => d.ref.delete());
+        }
+      } catch(e) { console.warn('Falha ao remover cliente no Firestore:', e); }
     };
   });
 }
