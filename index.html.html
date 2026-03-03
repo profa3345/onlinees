@@ -199,7 +199,7 @@
     .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
     .filters .col{min-width:180px}
     .help{font-size:.7rem;color:#334155}
-    @media (max-width:880px){.sidebar{transform:translateX(-100%);transition:.2s;width:225px}.sidebar.open{transform:translateX(0)}.content{margin-left:0}.row{flex-direction:column}.main{padding:12px 10px}.report-box{width:100%;max-width:100%;height:100%;max-height:100vh;border-radius:0}.report-body{font-size:1.1rem}.sidebar-toggle{display:flex!important}}
+    @media (max-width:880px){.sidebar{transform:translateX(-100%);transition:.2s;width:225px;z-index:100}.sidebar.open{transform:translateX(0)}.content{margin-left:0}.row{flex-direction:column}.main{padding:12px 10px}.report-box{width:100%;max-width:100%;height:100%;max-height:100vh;border-radius:0}.report-body{font-size:1.1rem}.sidebar-toggle{display:flex!important}.topbar{gap:10px}}
   
 .pill-toggle{
   display:inline-flex;
@@ -456,9 +456,6 @@ html[data-role="technician"] nav button {
           <small>Eletroeletrônica</small>
         </div>
       </div>
-      <button class="sidebar-toggle" id="btnToggleSidebar">
-        <i class="ri-menu-3-line"></i>
-      </button>
     </div>
     <div class="menu">
       <button id="mNovo" class="active"><i class="ri-edit-box-line"></i> Novo Atendimento</button>
@@ -474,8 +471,12 @@ html[data-role="technician"] nav button {
     </div>
   </aside>
 
+  <div id="sidebarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99;" onclick="document.getElementById('sidebar').classList.remove('open');this.style.display='none';"></div>
   <div class="content">
     <div class="topbar">
+      <button class="sidebar-toggle" id="btnToggleSidebar" style="display:none;">
+        <i class="ri-menu-3-line"></i>
+      </button>
       <div>
         <h1 id="tituloTela">Novo Atendimento</h1>
         <small>Sistema de Relatórios Técnicos</small>
@@ -3068,7 +3069,11 @@ function autoFillCamposAtendimento(){
     try { logInfo('Logout', { usuario: (usuarioLogado && usuarioLogado.username) || 'N/A' }); } catch(e){}
     usuarioLogado=null; app.style.display='none'; telaLogin.style.display='flex';
   };
-  btnToggleSidebar.onclick = ()=>sidebar.classList.toggle('open');
+  btnToggleSidebar.onclick = ()=>{
+    sidebar.classList.toggle('open');
+    var ov = document.getElementById('sidebarOverlay');
+    if (ov) ov.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
+  };
 
   // Fecha sidebar no mobile ao clicar fora dela
   document.addEventListener('click', function(e){
@@ -3084,7 +3089,11 @@ function autoFillCamposAtendimento(){
   if (typeof mostrarTela === 'function') {
     var _mTOrig = mostrarTela;
     mostrarTela = async function(nome) {
-      if (window.innerWidth <= 880) sidebar.classList.remove('open');
+      if (window.innerWidth <= 880) {
+      sidebar.classList.remove('open');
+      var ov = document.getElementById('sidebarOverlay');
+      if (ov) ov.style.display = 'none';
+    }
       return _mTOrig(nome);
     };
   }
