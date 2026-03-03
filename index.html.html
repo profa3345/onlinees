@@ -1563,6 +1563,14 @@ html[data-role="technician"] nav button {
     try {
       const idBase = (c.nome || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
       const id = idBase || ('cli-' + Date.now());
+      // Limpa documentos antigos com ID diferente (ex: com espaços ou maiúsculas)
+      try {
+        const idOriginal = c.nome;
+        const idLower    = (c.nome || '').toLowerCase();
+        [idOriginal, idLower].filter(v => v && v !== id).forEach(oldId => {
+          db.collection('onlineEsClientes').doc(oldId).delete().catch(()=>{});
+        });
+      } catch(e) {}
       await db.collection('onlineEsClientes').doc(id).set({
         nome: c.nome || '',
         cnpj: c.cnpj || '',
@@ -1720,21 +1728,29 @@ html[data-role="technician"] nav button {
     }
     try {
       const snap = await db.collection("onlineEsClientes").get();
-      const lista = [];
+      const mapaClientes = new Map(); // deduplica por nome
       snap.forEach(docRef => {
         const d = docRef.data() || {};
         if (d.ativo === false) return;
-        lista.push({
-          nome: d.nome || "",
-          cnpj: d.cnpj || "",
-          telefone: d.telefone || "",
-          cep: d.cep || "",
-          endereco: d.endereco || "",
-          bairro: d.bairro || "",
-          cidade: d.cidade || "",
-          uf: d.uf || ""
-        });
+        const nome = d.nome || "";
+        if (!nome) return;
+        // Prefere o documento com ID normalizado (sem espaços)
+        const idNorm = nome.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
+        const isNormalized = docRef.id === idNorm;
+        if (!mapaClientes.has(nome) || isNormalized) {
+          mapaClientes.set(nome, {
+            nome,
+            cnpj: d.cnpj || "",
+            telefone: d.telefone || "",
+            cep: d.cep || "",
+            endereco: d.endereco || "",
+            bairro: d.bairro || "",
+            cidade: d.cidade || "",
+            uf: d.uf || ""
+          });
+        }
       });
+      const lista = Array.from(mapaClientes.values());
 
       try {
         localStorage.setItem(STORAGE_CLIENTES, JSON.stringify(lista));
@@ -3715,16 +3731,22 @@ function renderClientes(){
       if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa();
       showToast('Cliente removido.');
       try { logInfo('Cliente removido', { nome: nome }); } catch(e){}
-      // Remove do Firestore
+      // Remove do Firestore — deleta TODAS as variações de ID para o mesmo nome
       try {
         if (db) {
-          // ID gerado pelo nome normalizado (mesmo esquema do salvarClienteNoFirestore)
-          const idBase = nome.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
-          // Tenta deletar pelo ID calculado
-          await db.collection('onlineEsClientes').doc(idBase).delete();
-          // Busca também por campo nome caso o ID seja diferente
-          const snap = await db.collection('onlineEsClientes').where('nome', '==', nome).limit(5).get();
-          snap.forEach(d => d.ref.delete());
+          const idNormalizado = nome.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
+          const idOriginal    = nome; // ID antigo (com espaços/maiúsculas)
+          const idLower       = nome.toLowerCase();
+
+          // Deleta pelas 3 variações de ID possíveis
+          const dels = [idNormalizado, idOriginal, idLower]
+            .filter((v,i,a) => a.indexOf(v) === i) // remove duplicatas
+            .map(id => db.collection('onlineEsClientes').doc(id).delete().catch(()=>{}));
+          await Promise.all(dels);
+
+          // Busca e deleta qualquer documento com esse nome (garante limpeza total)
+          const snap = await db.collection('onlineEsClientes').where('nome', '==', nome).limit(10).get();
+          await Promise.all(snap.docs.map(d => d.ref.delete()));
         }
       } catch(e) { console.warn('Falha ao remover cliente no Firestore:', e); }
     };
@@ -5433,20 +5455,40 @@ const AppStorage = {
       if (!navigator.onLine || !_db) return;
       if (Array.isArray(data)) {
         data.forEach(function(item) {
-          if (item && (item.id || item.username || item.usuario || item.nome)) {
-            var docId = item.id || item.username || item.usuario || item.nome;
-            try {
-              // Para usuários: NUNCA enviar senha em texto plano
-              // Usa salvarUsuarioNoFirestore que envia apenas hash+salt
-              if (colName === 'onlineEsUsuarios') {
-                if (typeof window.salvarUsuarioNoFirestore === 'function') {
-                  window.salvarUsuarioNoFirestore(item);
-                }
-                return; // não faz o set genérico
+          if (!item) return;
+          try {
+            // Usuários: usa salvarUsuarioNoFirestore (envia hash+salt, nunca senha plana)
+            if (colName === 'onlineEsUsuarios') {
+              if (typeof window.salvarUsuarioNoFirestore === 'function') {
+                window.salvarUsuarioNoFirestore(item);
               }
-              _db.collection(colName).doc(String(docId)).set(item, { merge: true });
-            } catch(e) {}
-          }
+              return;
+            }
+            // Clientes: ID normalizado (sem espaços/maiúsculas)
+            if (colName === 'onlineEsClientes') {
+              if (typeof window.salvarClienteNoFirestore === 'function') {
+                window.salvarClienteNoFirestore(item);
+              }
+              return;
+            }
+            // Equipamentos: usa salvarEquipamentoNoFirestore
+            if (colName === 'onlineEsEquipamentos') {
+              if (typeof window.salvarEquipamentoNoFirestore === 'function') {
+                window.salvarEquipamentoNoFirestore(item);
+              }
+              return;
+            }
+            // Relatórios: usa salvarRelatorioNoFirestore
+            if (colName === 'onlineEsRelatorios') {
+              if (typeof window.salvarRelatorioNoFirestore === 'function') {
+                window.salvarRelatorioNoFirestore(item);
+              }
+              return;
+            }
+            // Outros: fallback genérico
+            var docId = item.id || item.username || item.usuario || item.nome;
+            if (docId) _db.collection(colName).doc(String(docId)).set(item, { merge: true });
+          } catch(e) {}
         });
       }
     } catch(e) {
