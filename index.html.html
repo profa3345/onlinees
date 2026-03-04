@@ -196,7 +196,11 @@
     .dash-cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
     .card-mini{background:linear-gradient(140deg,#0f172a 0%,#114f91 60%)!important;padding:10px 12px;border-radius:12px;min-width:140px;flex:1 1 140px;color:#fff;transition:transform .15s ease,box-shadow .15s ease;box-shadow:0 6px 18px rgba(17,79,145,.35);cursor:pointer}
     .card-mini:hover{transform:translateY(-3px);box-shadow:0 10px 25px rgba(17,79,145,.48)}
-    #assinaturaClienteBox{margin-top:10px;background:#f8fafc;border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:8px 10px 12px}
+    #modalDeletarRAT{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;}
+  #modalDeletarRAT>div{background:#fff;border-radius:18px;padding:28px 24px 22px;max-width:400px;width:100%;box-shadow:0 8px 40px rgba(15,23,42,.18);}
+  #modalDeletarRAT.hidden{display:none;}
+  #inputConfirmarRAT:focus{outline:none;border-color:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.12);}
+  #assinaturaClienteBox{margin-top:10px;background:#f8fafc;border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:8px 10px 12px}
     
     #sigBtns{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .inline-badge{display:inline-block;background:#fde68a;color:#7c2d12;border:1px solid #f59e0b;padding:2px 8px;border-radius:999px;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.02em}
@@ -487,6 +491,29 @@ html[data-role="technician"] nav button {
     <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
       <button class="btn secondary" id="btnCancelarSenha">Cancelar</button>
       <button class="btn" id="btnSalvarSenha">Salvar senha</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmação de exclusão de relatório -->
+<div id="modalDeletarRAT" class="hidden">
+  <div>
+    <h3 style="color:#dc2626;"><i class="ri-delete-bin-2-line"></i> Excluir Relatório</h3>
+    <p style="margin:8px 0 4px;">Esta ação é irreversível. O relatório será marcado como excluído.</p>
+    <p style="font-size:.82rem;color:#64748b;margin-bottom:12px;">Digite o número da RAT para confirmar:</p>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:12px;">
+      <strong id="modalDeletarNumero" style="color:#dc2626;font-size:1rem;"></strong>
+      <div id="modalDeletarCliente" style="font-size:.82rem;color:#64748b;margin-top:2px;"></div>
+    </div>
+    <input type="text" id="inputConfirmarRAT" placeholder="Digite o número da RAT aqui" autocomplete="off"
+      style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.9rem;box-sizing:border-box;">
+    <div id="msgErroDeletar" style="color:#dc2626;font-size:.78rem;margin-top:4px;min-height:16px;"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">
+      <button class="btn secondary" id="btnCancelarDeletar">Cancelar</button>
+      <button class="btn" id="btnConfirmarDeletar" data-bloqueado="true"
+        style="background:#dc2626;border-color:#dc2626;opacity:.5;cursor:not-allowed;pointer-events:none;">
+        <i class="ri-delete-bin-2-line"></i> Excluir
+      </button>
     </div>
   </div>
 </div>
@@ -920,7 +947,7 @@ html[data-role="technician"] nav button {
           </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn" id="btnSalvarLocal"><i class="ri-save-3-line"></i> Salvar relatório</button>
-            <button class="btn secondary" id="btnSalvarRascunho"><i class="ri-draft-line"></i> Salvar rascunho</button>
+            <button class="btn secondary" id="btnSalvarRascunho" style="opacity:0.55;transition:opacity .2s,background .2s,border-color .2s"><i class="ri-draft-line"></i> Salvar rascunho</button>
             <button class="btn" id="btnGerarPdfLocal"><i class="ri-file-pdf-line"></i> Gerar PDF</button>
             <button class="btn" id="btnEnviarEmail" type="button" style="display:flex;align-items:center;gap:4px;">
               <i class="ri-mail-send-line"></i> Enviar por e-mail
@@ -1227,12 +1254,14 @@ html[data-role="technician"] nav button {
             • <strong>Restaurar:</strong> importa um arquivo de backup válido e regrava os dados locais.
           </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <button class="btn small" id="btnBackup"><i class="ri-download-2-line"></i> Fazer backup</button>
+            <button class="btn small" id="btnBackup"><i class="ri-download-2-line"></i> Fazer backup agora</button>
+            <button class="btn small" id="btnListarBackups" style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0;"><i class="ri-database-2-line"></i> Restaurar do Banco</button>
             <label class="btn small" id="btnRestaurarWrap" style="display:none;cursor:pointer;">
-              <i class="ri-upload-2-line"></i> Restaurar backup
+              <i class="ri-upload-2-line"></i> Restaurar arquivo JSON
               <input type="file" id="inputRestore" accept="application/json" style="display:none">
             </label>
           </div>
+          <div id="listaBackupsFirebase" style="display:none;margin-top:12px;"></div>
           <small class="help">Backup disponível para Supervisores e Administradores. Restaurar é exclusivo do Administrador.</small>
           </div>
 
@@ -2836,6 +2865,29 @@ function autoFillCamposAtendimento(){
 
 
   btnCancelarSenha.onclick = ()=>modalSenha.classList.add('hidden');
+
+  // Wiring modal deletar RAT
+  const _btnCancelarDeletar = document.getElementById('btnCancelarDeletar');
+  const _btnConfirmarDeletar = document.getElementById('btnConfirmarDeletar');
+  const _inputConfirmarRAT  = document.getElementById('inputConfirmarRAT');
+  if (_btnCancelarDeletar) _btnCancelarDeletar.onclick = fecharModalDeletar;
+  if (_btnConfirmarDeletar) _btnConfirmarDeletar.onclick = confirmarDeletarRAT;
+  if (_inputConfirmarRAT) {
+    _inputConfirmarRAT.addEventListener('input', function() {
+      const msgEl = document.getElementById('msgErroDeletar');
+      const btnOk = document.getElementById('btnConfirmarDeletar');
+      const typed = this.value.trim();
+      const expected = _ratParaDeletar ? (_ratParaDeletar.numero || _ratParaDeletar.id || '') : '';
+      const ok = typed === expected;
+      if (btnOk) {
+        btnOk.dataset.bloqueado = ok ? 'false' : 'true';
+        btnOk.style.opacity = ok ? '1' : '.5';
+        btnOk.style.cursor = ok ? 'pointer' : 'not-allowed';
+        btnOk.style.pointerEvents = ok ? '' : 'none';
+      }
+      if (msgEl) msgEl.textContent = typed && !ok ? 'Número não confere. Digite exatamente: ' + expected : '';
+    });
+  }
   btnSalvarSenha.onclick = async ()=>{
     try {
     if (!userMustSetPassword) userMustSetPassword = window._userMustSetPassword || null;
@@ -2920,6 +2972,118 @@ function autoFillCamposAtendimento(){
     clientes.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(c=>{
       const o=document.createElement('option'); o.value=c.nome; o.textContent=c.nome; buscaEmpresa.appendChild(o);
     });
+  }
+
+  // ===== MODAL DELETAR RAT =====
+  var _ratParaDeletar = null;
+
+  function abrirModalDeletar(r) {
+    _ratParaDeletar = r;
+    const modal = document.getElementById('modalDeletarRAT');
+    const numEl  = document.getElementById('modalDeletarNumero');
+    const cliEl  = document.getElementById('modalDeletarCliente');
+    const input  = document.getElementById('inputConfirmarRAT');
+    const btnOk  = document.getElementById('btnConfirmarDeletar');
+    const msgEl  = document.getElementById('msgErroDeletar');
+    if (!modal) return;
+    if (numEl)  numEl.textContent  = r.numero || r.id;
+    if (cliEl)  cliEl.textContent  = (r.cliente || '') + (r.dataHoraBr ? '  •  ' + r.dataHoraBr : '');
+    if (input)  input.value = '';
+    if (msgEl)  msgEl.textContent = '';
+    if (btnOk)  { btnOk.dataset.bloqueado = 'true'; btnOk.style.opacity = '.5'; btnOk.style.cursor = 'not-allowed'; btnOk.style.pointerEvents = 'none'; }
+    modal.classList.remove('hidden');
+    setTimeout(() => { if (input) input.focus(); }, 100);
+  }
+
+  function fecharModalDeletar() {
+    const modal = document.getElementById('modalDeletarRAT');
+    if (modal) modal.classList.add('hidden');
+    _ratParaDeletar = null;
+  }
+
+  async function confirmarDeletarRAT() {
+    const _btnOk = document.getElementById('btnConfirmarDeletar');
+    if (_btnOk && _btnOk.dataset.bloqueado === 'true') return;
+    if (!_ratParaDeletar || !isSupervisorOrAdmin(usuarioLogado)) return;
+    const r = _ratParaDeletar;
+
+    // Soft delete local
+    relatorios = relatorios.filter(x => x.id !== r.id);
+    saveRelatorios(relatorios);
+
+    // Soft delete no Firestore (marca _deleted:true)
+    try {
+      if (db) {
+        const docId = r._firestoreId || r.id;
+        await db.collection('onlineEsRelatorios').doc(docId).set(
+          { _deleted: true, _deletedBy: usuarioLogado.username, _deletedAt: new Date().toISOString() },
+          { merge: true }
+        );
+      }
+    } catch(e) { console.warn('Falha ao marcar _deleted no Firestore:', e); }
+
+    try { logInfo('RAT excluída', { numero: r.numero || r.id, por: usuarioLogado.username }); } catch(e) {}
+
+    fecharModalDeletar();
+    renderLista();
+    atualizarDashboard();
+    showToast('Relatório ' + (r.numero || '') + ' excluído.');
+  }
+
+  // ===== EDITAR RAT =====
+  function editarRelatorio(r) {
+    // Preenche o formulário de Novo Atendimento com os dados do relatório
+    mostrarTela('novo').then(() => {
+      try {
+        if (aNumeroRat) aNumeroRat.value = r.numero || '';
+        if (aDataHoraBR) aDataHoraBR.value = r.dataHoraBr || r.dataHoraBR || '';
+
+        // Cliente
+        if (r.clienteManual && aClienteManual) {
+          if (aClienteSelect) aClienteSelect.style.display = 'none';
+          aClienteManual.style.display = 'block';
+          aClienteManual.value = r.clienteManual || r.cliente || '';
+        } else if (aClienteSelect) {
+          aClienteSelect.value = r.cliente || '';
+        }
+
+        const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.value = val || ''; };
+        setVal('aContato',      r.contato);
+        setVal('aTelefone',     r.telefone);
+        setVal('aWhats',        r.whatsapp);
+        setVal('aEmailCliente', r.emailCliente);
+        setVal('aEndereco',     r.endereco);
+        setVal('aBairro',       r.bairro);
+        setVal('aCidade',       r.cidade);
+        setVal('aUF',           r.uf);
+        setVal('aCep',          r.cepCliente);
+        setVal('aCnpj',         r.cnpjCliente);
+        setVal('aLocalizacao',  r.localizacao);
+        setVal('aCoord',        r.localizacaoCoordenadas);
+        setVal('aLinkMaps',     r.localizacaoLink);
+        setVal('bEquipamento',  r.equipamento);
+        setVal('bSerie',        r.serie);
+        setVal('bKVA',          r.kva);
+        setVal('bLocal',        r.localInstalacao);
+        setVal('bCondicao',     r.condicao);
+        setVal('cTipo',         r.tipo);
+        setVal('cStatus',       r.status);
+        setVal('cProblema',     r.problema);
+        setVal('cDiagnostico',  r.diagnostico);
+        setVal('cAcoes',        Array.isArray(r.acoes) ? r.acoes.join('\n') : (r.acoes || ''));
+        setVal('cPecas',        r.pecas);
+        setVal('dBatQtd',       r.bateriasQtd);
+        setVal('dBatTensao',    r.bateriasTensao);
+        setVal('dObs',          r.bateriasObs);
+
+        // Remove o relatório antigo para ser substituído ao salvar
+        relatorios = relatorios.filter(x => x.id !== r.id);
+        saveRelatorios(relatorios);
+
+        try { logInfo('RAT aberta para edição', { numero: r.numero || r.id }); } catch(e) {}
+        showToast('Relatório carregado para edição. Salve ao finalizar.');
+      } catch(e) { console.warn('Erro ao preencher formulário para edição:', e); }
+    }).catch(e => console.warn('Erro ao abrir tela novo:', e));
   }
 
   function entrarSistema(user){
@@ -3254,7 +3418,7 @@ function autoFillCamposAtendimento(){
     const f = (filtroTexto ? filtroTexto.value||'' : '').trim().toLowerCase();
     const fs = filtroStatus ? filtroStatus.value : '';
 
-    let data = relatorios.filter(r=>{
+    let data = relatorios.filter(r=> !r._deleted).filter(r=>{
       let ok = true;
       if (f){
         const txt = (r.numero+' '+r.cliente+' '+(r.cidade||'')+' '+(r.tecnico||'')+' '+(r.status||'')).toLowerCase();
@@ -3294,8 +3458,10 @@ function autoFillCamposAtendimento(){
           <span class="badge-status ${statusClass}">${esc(r.status)}</span>
         </div>
         <div class="relatorio-acoes" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-          <button class="btn small" data-ver="${r.id}"><i class="ri-eye-line"></i> Visualizar em tela</button>
+          <button class="btn small" data-ver="${r.id}"><i class="ri-eye-line"></i> Visualizar</button>
           <button class="btn small" data-pdf="${r.id}"><i class="ri-file-pdf-line"></i> Gerar PDF</button>
+          <button class="btn small" data-editar-rat="${r.id}" style="background:#f0f9ff;color:#0369a1;border-color:#bae6fd;"><i class="ri-edit-2-line"></i> Editar</button>
+          ${isSupervisorOrAdmin(usuarioLogado) ? `<button class="btn small" data-deletar-rat="${r.id}" style="background:#fff1f2;color:#dc2626;border-color:#fecaca;"><i class="ri-delete-bin-2-line"></i> Excluir</button>` : ''}
         </div>
         ${(temImg||temVid)?`<div class="mini-gallery" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
           ${(r.imgsEquip||[]).map(src=>`<img src="${src}" style="width:42px;height:32px;object-fit:cover;border-radius:6px;">`).join('')}
@@ -3322,10 +3488,31 @@ function autoFillCamposAtendimento(){
         try { await exportarPDF(r); showToast('PDF do relatório gerado.'); try { logInfo('PDF gerado', { numero: r.numero || r.id || 'N/A' }); } catch(e){} renderLista(); } catch(e){ console.error(e); alert('Não foi possível gerar o PDF deste relatório.'); }
       };
     });
+
+    document.querySelectorAll('[data-deletar-rat]').forEach(btn => {
+      btn.onclick = () => {
+        if (!isSupervisorOrAdmin(usuarioLogado)) { showToast('Sem permissão.'); return; }
+        const id = btn.getAttribute('data-deletar-rat');
+        const r = relatorios.find(x => x.id === id);
+        if (!r) return;
+        abrirModalDeletar(r);
+      };
+    });
+
+    document.querySelectorAll('[data-editar-rat]').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.getAttribute('data-editar-rat');
+        const r = relatorios.find(x => x.id === id);
+        if (!r) return;
+        editarRelatorio(r);
+      };
+    });
   }
 
   btnMostrarTodos.onclick = ()=>{ modoListaSupervisor='all'; renderLista(); };
   btnMostrarNaoVistos.onclick = ()=>{ modoListaSupervisor='unread'; renderLista(); };
+
+  // handlers deletar/editar registrados dentro de renderLista()
 
   // Visualização
   // [REFACTOR] blocoMidiasHTML moved to unified module (v24 version)
@@ -4021,6 +4208,76 @@ document.getElementById('btnAddCliente').onclick=()=>{
   });
 }
 
+  // Normaliza assinatura: recorta bbox dos traços e escala para tamanho padrão
+  function normalizarAssinaturaPNG(dataUrl, targetW, targetH) {
+    return new Promise(function(resolve) {
+      if (!dataUrl) { resolve(null); return; }
+      var img = new Image();
+      img.onload = function() {
+        // Cria canvas temporário para ler pixels
+        var tmp = document.createElement('canvas');
+        tmp.width = img.width;
+        tmp.height = img.height;
+        var ctx = tmp.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        var data = ctx.getImageData(0, 0, img.width, img.height).data;
+
+        // Encontra bounding box dos pixels escuros (traços)
+        var minX = img.width, minY = img.height, maxX = 0, maxY = 0;
+        var encontrou = false;
+        for (var y = 0; y < img.height; y++) {
+          for (var x = 0; x < img.width; x++) {
+            var idx = (y * img.width + x) * 4;
+            var r = data[idx], g = data[idx+1], b = data[idx+2];
+            // Pixel escuro = traço
+            if (r < 200 || g < 200 || b < 200) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+              encontrou = true;
+            }
+          }
+        }
+
+        if (!encontrou) { resolve(dataUrl); return; }
+
+        // Margem de 8px ao redor do traço
+        var pad = 8;
+        minX = Math.max(0, minX - pad);
+        minY = Math.max(0, minY - pad);
+        maxX = Math.min(img.width - 1, maxX + pad);
+        maxY = Math.min(img.height - 1, maxY + pad);
+
+        var bboxW = maxX - minX;
+        var bboxH = maxY - minY;
+        if (bboxW < 1 || bboxH < 1) { resolve(dataUrl); return; }
+
+        // Escala para targetW x targetH mantendo proporção
+        var scale = Math.min(targetW / bboxW, targetH / bboxH);
+        var outW = Math.round(bboxW * scale);
+        var outH = Math.round(bboxH * scale);
+
+        // Canvas de saída com fundo branco
+        var out = document.createElement('canvas');
+        out.width = targetW;
+        out.height = targetH;
+        var octx = out.getContext('2d');
+        octx.fillStyle = '#ffffff';
+        octx.fillRect(0, 0, targetW, targetH);
+
+        // Centraliza o traço no canvas de saída
+        var offX = Math.round((targetW - outW) / 2);
+        var offY = Math.round((targetH - outH) / 2);
+        octx.drawImage(tmp, minX, minY, bboxW, bboxH, offX, offY, outW, outH);
+
+        resolve(out.toDataURL('image/png'));
+      };
+      img.onerror = function() { resolve(dataUrl); };
+      img.src = dataUrl;
+    });
+  }
+
   async function exportarPDF(r){
     try {
     if (!window.jspdf || !window.jspdf.jsPDF){
@@ -4248,26 +4505,37 @@ if (logoBase64) {
 
     const topoAssY = y;
 
-    // --- CALCULA ALTURA DAS ASSINATURAS (CLIENTE E TÉCNICO) ---
-    let alturaAssCli = 0;
+    // --- ASSINATURAS: normaliza bbox + escala idêntica para cliente e técnico ---
+    // Canvas intermediário: 600x168px (mesmo ratio que canvas 140px altura)
+    const SIG_NORM_W = 600;
+    const SIG_NORM_H = 168;
+    // Dimensão no PDF: 60mm x 28mm, alinhada na base
+    const SIG_W = 60;
+    const SIG_H = 28;
+    const SIG_ALTURA_RESERVADA = 28;
+
+    // Normaliza e insere cliente (bloco esquerdo: 20-90mm)
     if (r.assinaturaCliente) {
-      alturaAssCli = await addImagemReduzidaAoPdf(doc, r.assinaturaCliente, 20, topoAssY, 70, 35, true) || 0;
-    }
-    if (alturaAssCli <= 0) {
-      alturaAssCli = 30;
+      const sigCliNorm = await normalizarAssinaturaPNG(r.assinaturaCliente, SIG_NORM_W, SIG_NORM_H);
+      if (sigCliNorm) {
+        const cx = 20 + (70 - SIG_W) / 2;
+        const cy = topoAssY;
+        try { doc.addImage(sigCliNorm, 'PNG', cx, cy, SIG_W, SIG_H); } catch(e){}
+      }
     }
 
-    let alturaAssTec = 0;
+    // Normaliza e insere técnico (bloco direito: 120-190mm)
     if (r.assinaturaTecnicoImg) {
-      alturaAssTec = await addImagemReduzidaAoPdf(doc, r.assinaturaTecnicoImg, 120, topoAssY, 70, 35, true) || 0;
-    }
-    if (alturaAssTec <= 0) {
-      alturaAssTec = alturaAssCli;
+      const sigTecNorm = await normalizarAssinaturaPNG(r.assinaturaTecnicoImg, SIG_NORM_W, SIG_NORM_H);
+      if (sigTecNorm) {
+        const cx = 120 + (70 - SIG_W) / 2;
+        const cy = topoAssY;
+        try { doc.addImage(sigTecNorm, 'PNG', cx, cy, SIG_W, SIG_H); } catch(e){}
+      }
     }
 
-    // Usa a MAIOR altura entre as duas assinaturas como referência,
-    // para que as linhas fiquem exatamente na mesma altura.
-    const linhaBaseY = topoAssY + Math.max(alturaAssCli, alturaAssTec) + 2;
+    // Linha de base idêntica para os dois blocos
+    const linhaBaseY = topoAssY + SIG_ALTURA_RESERVADA + 2;
 
     // --- BLOCO CLIENTE (ESQUERDA) ---
     doc.setDrawColor(148,163,184);
@@ -4323,9 +4591,14 @@ if (logoBase64) {
       const linha2 = "Rua Maria Lourdes Garcia 176, Ilha de Santa Maria, Vitória - Cep 29.051-250";
       const linha3 = `Página ${i}/${pageCount}`;
 
+      // Linha elegante acima do rodapé
+      doc.setDrawColor(148, 163, 184);
+      doc.setLineWidth(0.3);
+      doc.line(20, 283, 190, 283);
+
       doc.text(linha1, 105, 287, { align: 'center' });
       doc.text(linha2, 105, 292, { align: 'center' });
-      doc.text(linha3, 105, 297, { align: 'center' });
+      doc.text(linha3, 105, 296, { align: 'center' });
     }
 
     // Gera PDF, salva arquivo localmente e guarda uma cópia em memória para uso em anexos de e-mail
@@ -4371,7 +4644,6 @@ if (logoBase64) {
   }
 
   function montarRelatorioAtual(){
-    window.montarRelatorioAtual = montarRelatorioAtual;
     var midEquip = {imgs:[], vids:[]}, midServ = {imgs:[], vids:[]}, midBat = {imgs:[], vids:[]};
     try { midEquip = coletarMidiasPreview(document.getElementById('bPreview')); } catch(e){ console.warn('midEquip:', e); }
     try { midServ  = coletarMidiasPreview(document.getElementById('cPreview')); } catch(e){ console.warn('midServ:', e); }
@@ -4436,32 +4708,7 @@ if (logoBase64) {
         : '')
     };
   }
-  // Safety wrapper that catches any remaining errors in montarRelatorioAtual
-  var _montarRelatorioAtual_orig = montarRelatorioAtual;
-  function montarRelatorioAtual(){
-    try {
-      return _montarRelatorioAtual_orig();
-    } catch(e) {
-      console.error('montarRelatorioAtual ERRO:', e.stack || e);
-      // Return minimal safe object so callers don't also crash
-      return {
-        id: 'err-' + Date.now(),
-        numero: '', dataHoraBr: '', dataHoraIso: new Date().toISOString(),
-        tecnico: '', tecnicoLogin: '', cliente: '', contato: '', telefone: '',
-        whatsapp: '', endereco: '', bairro: '', cidade: '', uf: '', cnpjCliente: '',
-        emailCliente: '', localizacao: '', localizacaoCoordenadas: '', localizacaoLink: '',
-        equipamento: '', serie: '', kva: '', tensaoEntrada: '', tensaoSaida: '',
-        localInstalacao: '', condicao: '', fornecidoEstoque: '', equipEstoqueId: '',
-        tipo: '', status: '', problema: '', diagnostico: '', acoes: [], pecas: '',
-        bateriasQtd: '', bateriasTensao: '', bateriasObs: '',
-        imgsEquip: [], imgsServico: [], imgsBaterias: [],
-        vidsEquip: [], vidsServico: [], vidsBaterias: [],
-        assinaturaCliente: null, assinaturaTecnicoImg: null, nomeAssinaturaCliente: '',
-        visto: false, _erro: e.message
-      };
-    }
-  }
-  window.montarRelatorioAtual = montarRelatorioAtual;
+  // montarRelatorioAtual definida acima
 
     function garantirCadastroNovoClienteInline(){
     if (!aClienteManual) return;
@@ -4607,6 +4854,31 @@ if (logoBase64) {
         showToast('Erro ao salvar rascunho.');
       }
     };
+
+    // Ativa o botão rascunho (fica igual aos demais) ao primeiro input do formulário
+    function ativarBtnRascunho() {
+      btnSalvarRascunho.classList.remove('secondary');
+      btnSalvarRascunho.style.opacity = '1';
+    }
+    var _rascunhoAtivado = false;
+    function _ativarUmaVez() {
+      if (_rascunhoAtivado) return;
+      _rascunhoAtivado = true;
+      ativarBtnRascunho();
+    }
+    const telaNovo = document.getElementById('telaNovo');
+    if (telaNovo) {
+      // Ativa ao digitar em qualquer campo
+      telaNovo.addEventListener('input', _ativarUmaVez);
+      telaNovo.addEventListener('change', _ativarUmaVez);
+    }
+    // Ativa também quando o relógio preenche a data automaticamente
+    var _aDataHoraBREl = document.getElementById('aDataHoraBR');
+    if (_aDataHoraBREl) {
+      // Dispara 500ms após o login (relógio já terá preenchido)
+      setTimeout(_ativarUmaVez, 600);
+    }
+    if (aClienteSelect) aClienteSelect.addEventListener('change', _ativarUmaVez);
   }
 
   // Restaurar rascunho ao abrir Novo Atendimento
@@ -4651,25 +4923,25 @@ if (logoBase64) {
         if (r.cnpj && aCnpj) aCnpj.value = r.cnpj;
 
         // Equipamento
-        if (r.equipamento) { const _el = document.getElementById('bEquipamento'); if (_el) _el.value = r.equipamento || ''; }
+        if (r.equipamento) { var _fx = document.getElementById('bEquipamento'); if (_fx) _fx.value = r.equipamento || ''; }
         if (r.marca) document.getElementById('bMarca').value = r.marca || '';
         if (r.modelo) document.getElementById('bModelo').value = r.modelo || '';
-        if (r.serie) { const _el = document.getElementById('bSerie'); if (_el) _el.value = r.serie || ''; }
-        if (r.kva) { const _el = document.getElementById('bKVA'); if (_el) _el.value = r.kva || ''; }
-        if (r.localInstalacao) { const _el = document.getElementById('bLocal'); if (_el) _el.value = r.localInstalacao || ''; }
-        if (r.condicao) { const _el = document.getElementById('bCondicao'); if (_el) _el.value = r.condicao || ''; }
+        if (r.serie) { var _fx = document.getElementById('bSerie'); if (_fx) _fx.value = r.serie || ''; }
+        if (r.kva) { var _fx = document.getElementById('bKVA'); if (_fx) _fx.value = r.kva || ''; }
+        if (r.localInstalacao) { var _fx = document.getElementById('bLocal'); if (_fx) _fx.value = r.localInstalacao || ''; }
+        if (r.condicao) { var _fx = document.getElementById('bCondicao'); if (_fx) _fx.value = r.condicao || ''; }
 
         // Serviço
-        if (r.tipo) { const _el = document.getElementById('cTipo'); if (_el) _el.value = r.tipo || ''; }
-        if (r.status) { const _el = document.getElementById('cStatus'); if (_el) _el.value = r.status || ''; }
-        if (r.problema) { const _el = document.getElementById('cProblema'); if (_el) _el.value = r.problema || ''; }
-        if (r.diagnostico) { const _el = document.getElementById('cDiagnostico'); if (_el) _el.value = r.diagnostico || ''; }
-if (r.acoes && Array.isArray(r.acoes)) { const _el = document.getElementById('cAcoes'); if (_el) _el.value = r.acoes.join('\n'); }
-        if (r.pecas) { const _el = document.getElementById('cPecas'); if (_el) _el.value = r.pecas || ''; }
+        if (r.tipo) { var _fx = document.getElementById('cTipo'); if (_fx) _fx.value = r.tipo || ''; }
+        if (r.status) { var _fx = document.getElementById('cStatus'); if (_fx) _fx.value = r.status || ''; }
+        if (r.problema) { var _fx = document.getElementById('cProblema'); if (_fx) _fx.value = r.problema || ''; }
+        if (r.diagnostico) { var _fx = document.getElementById('cDiagnostico'); if (_fx) _fx.value = r.diagnostico || ''; }
+        if (r.acoes && Array.isArray(r.acoes)) { var _fx = document.getElementById('cAcoes'); if (_fx) _fx.value = r.acoes.join('\n'); }
+        if (r.pecas) { var _fx = document.getElementById('cPecas'); if (_fx) _fx.value = r.pecas || ''; }
 
         // Baterias
-        if (r.bateriasQtd) { const _el = document.getElementById('dBatQtd'); if (_el) _el.value = r.bateriasQtd || ''; }
-        if (r.bateriasTensao) { const _el = document.getElementById('dBatTensao'); if (_el) _el.value = r.bateriasTensao || ''; }
+        if (r.bateriasQtd) { var _fx = document.getElementById('dBatQtd'); if (_fx) _fx.value = r.bateriasQtd || ''; }
+        if (r.bateriasTensao) { var _fx = document.getElementById('dBatTensao'); if (_fx) _fx.value = r.bateriasTensao || ''; }
         if (r.bateriasObs) { var _dObs = document.getElementById('dObs'); if (_dObs) _dObs.value = r.bateriasObs || ''; }
 
         showToast('Rascunho restaurado. Continue preenchendo.');
@@ -4753,16 +5025,15 @@ if (r.acoes && Array.isArray(r.acoes)) { const _el = document.getElementById('cA
         alert('Informe o e-mail do cliente para enviar.');
         return;
       }
+      if (typeof autoFillCamposAtendimento === 'function') autoFillCamposAtendimento();
+      ensureNumeroRat();
       var r; try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
-      if (!r || !r.numero){
-        alert('Gere o relatório antes de enviar por e-mail.');
-        return;
-      }
+      if (!r){ alert('Erro ao montar relatório.'); return; }
 
       const numeroRAT = r.numero || '';
       const nomeEmpresa  = r.cliente || r.clienteManual || '';
       const nomeVistoria = r.nomeAssinaturaCliente || r.assinaturaNome || r.contato || '';
-      const dataTexto    = r.dataHoraBR || r.dataHora || '';
+      const dataTexto    = r.dataHoraBr || r.dataHoraBR || r.dataHora || (document.getElementById('aDataHoraBR') ? document.getElementById('aDataHoraBR').value : '') || '';
       const nomeTec      = r.tecnico || (window.usuarioLogado && (window.usuarioLogado.fullName || window.usuarioLogado.username)) || '';
 
       const assuntoPlano = `Online-ES / Envio de Relatório Técnico – ${numeroRAT}`;
@@ -4795,6 +5066,7 @@ if (r.acoes && Array.isArray(r.acoes)) { const _el = document.getElementById('cA
       alert('Informe o WhatsApp ou telefone do cliente antes de enviar.');
       return;
     }
+    ensureNumeroRat();
     var r;
     try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
     const msgBase = `Olá, aqui é da ONLINE-ES – Eletroeletrônica. Encaminhamos o Relatório Técnico de Atendimento ao cliente ${r.cliente || ''}, RAT ${r.numero || ''}.`;
@@ -5411,6 +5683,109 @@ function aplicarPermissoesConfiguracoes(){
   }
   // Executa 30s após o login (dá tempo de sincronizar tudo)
   setTimeout(autoBackupFirestore, 30000);
+
+  // === LISTAR E RESTAURAR BACKUPS DO FIREBASE ===
+  async function listarBackupsFirebase() {
+    const container = document.getElementById('listaBackupsFirebase');
+    if (!container) return;
+
+    if (!isAdmin()) {
+      alert('Restaurar backup é exclusivo do Administrador.');
+      return;
+    }
+
+    const _db = (typeof window._getDb === 'function') ? window._getDb() : null;
+    if (!_db) { alert('Firebase não disponível. Verifique sua conexão.'); return; }
+    if (!navigator.onLine) { alert('Sem conexão com a internet.'); return; }
+
+    container.style.display = 'block';
+    container.innerHTML = '<p style="color:#64748b;font-size:.82rem;"><i class="ri-loader-4-line"></i> Buscando backups no Firebase...</p>';
+
+    try {
+      const snap = await _db.collection('onlineEsBackups').orderBy('generatedAt', 'desc').limit(30).get();
+
+      if (snap.empty) {
+        container.innerHTML = '<p style="color:#64748b;font-size:.82rem;">Nenhum backup encontrado no Firebase.</p>';
+        return;
+      }
+
+      let html = '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-top:4px;">';
+      html += '<div style="background:#f8fafc;padding:8px 12px;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">BACKUPS DISPONÍVEIS NO FIREBASE</div>';
+
+      snap.forEach(doc => {
+        const d = doc.data();
+        const dataFmt = d.generatedAt || doc.id;
+        const geradoPor = d.geradoPor || 'sistema';
+        const ts = d.timestamp && d.timestamp.toDate ? d.timestamp.toDate().toLocaleString('pt-BR') : dataFmt;
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid #f1f5f9;gap:8px;">
+          <div>
+            <div style="font-weight:600;font-size:.85rem;">${dataFmt}</div>
+            <div style="font-size:.75rem;color:#64748b;">${ts} · por ${esc(geradoPor)}</div>
+          </div>
+          <button class="btn small" data-restore-id="${doc.id}"
+            style="background:#dcfce7;color:#15803d;border-color:#bbf7d0;white-space:nowrap;">
+            <i class="ri-arrow-go-back-line"></i> Restaurar
+          </button>
+        </div>`;
+      });
+
+      html += '</div>';
+      html += '<button id="btnFecharListaBackups" style="margin-top:8px;background:none;border:none;color:#64748b;font-size:.78rem;cursor:pointer;"><i class="ri-close-line"></i> Fechar lista</button>';
+      container.innerHTML = html;
+
+      document.getElementById('btnFecharListaBackups')?.addEventListener('click', () => {
+        container.style.display = 'none';
+      });
+
+      container.querySelectorAll('[data-restore-id]').forEach(btn => {
+        btn.onclick = async () => {
+          const docId = btn.getAttribute('data-restore-id');
+          await restaurarBackupFirebase(docId);
+        };
+      });
+
+    } catch(e) {
+      console.error('Erro ao listar backups:', e);
+      container.innerHTML = `<p style="color:#dc2626;font-size:.82rem;">Erro ao buscar backups: ${e.message || e}</p>`;
+    }
+  }
+
+  async function restaurarBackupFirebase(docId) {
+    if (!isAdmin()) { alert('Apenas o Administrador pode restaurar backups.'); return; }
+
+    const _db = (typeof window._getDb === 'function') ? window._getDb() : null;
+    if (!_db) { alert('Firebase não disponível.'); return; }
+
+    const ok = confirm(`Restaurar o backup do dia ${docId}?\n\nIsso substituirá TODOS os dados locais (relatórios, clientes, equipamentos).\n\nTem certeza?`);
+    if (!ok) return;
+
+    try {
+      const doc = await _db.collection('onlineEsBackups').doc(docId).get();
+      if (!doc.exists) { alert('Backup não encontrado.'); return; }
+
+      const d = doc.data();
+      if (!d || !d.data || typeof d.data !== 'object') {
+        alert('Backup corrompido ou formato inválido.');
+        return;
+      }
+
+      // Aplica cada chave no localStorage
+      let count = 0;
+      Object.entries(d.data).forEach(([k, v]) => {
+        try { localStorage.setItem(k, v); count++; } catch(e) {}
+      });
+
+      showToast(`Backup de ${docId} restaurado (${count} registros). Recarregando...`);
+      try { logInfo('Backup Firebase restaurado', { docId, count }); } catch(e) {}
+      setTimeout(() => location.reload(), 1200);
+
+    } catch(e) {
+      console.error('Erro ao restaurar backup:', e);
+      alert('Falha ao restaurar: ' + (e.message || e));
+    }
+  }
+
+  document.getElementById('btnListarBackups')?.addEventListener('click', listarBackupsFirebase);
 
   document.getElementById('inputRestore')?.addEventListener('change', async (e)=>{
    if (!isAdmin()) {
@@ -6132,7 +6507,7 @@ async function renderMeus(){
     var user = window.usuarioLogado || {};
     var nome = (user.fullName || user.nome || '').toLowerCase();
     var login = (user.username || user.usuario || '').toLowerCase();
-    var filtrados = todos.filter(function(r){
+    var filtrados = todos.filter(function(r){ if (r._deleted) return false;
       var tecNome = (r.tecnico || r.nomeTecnico || '').toLowerCase();
       var tecLogin = (r.tecnicoLogin || r.username || r.tecnicoUser || '').toLowerCase();
       if(nome && tecNome === nome) return true;
