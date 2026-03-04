@@ -76,7 +76,7 @@
     .logout{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.32);color:#fecaca;font-size:.6rem;border-radius:8px;padding:4px 9px;margin-top:6px;cursor:pointer}
     .content{margin-left:245px;flex:1;min-height:100vh;display:flex;flex-direction:column}
     .topbar{background:rgba(15,23,42,.45);backdrop-filter:blur(15px);border-bottom:1px solid rgba(248,130,32,.04);padding:9px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:20}
-    .topbar h1{font-size:1.4rem;margin:0}
+    .topbar h1{font-size:1.4rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
     .topbar small{font-size:1rem;color:#cbd5e1;font-weight:500}
     .topbar-right{display:flex;gap:10px;align-items:center}
     .badge-online{background:rgba(34,197,94,.15);color:#bbf7d0;font-size:.6rem;border-radius:999px;padding:3px 9px}
@@ -84,9 +84,9 @@
     .panel{background:rgba(15,23,42,.35);border:1px solid rgba(148,163,184,.05);border-radius:16px;padding:14px 14px 6px;box-shadow:0 10px 40px rgba(0,0,0,.12);backdrop-filter:blur(12px);animation:fadeIn .25s ease}
     @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
     .form-panel{background:var(--bg-form)!important;border:1px solid rgba(148,163,184,.22);border-radius:18px;box-shadow:0 16px 40px rgba(15,23,42,.06);color:#0f172a!important}
-    .form-panel .section-card{background:#fff;border:1px solid rgba(148,163,184,.14);border-radius:18px;padding:16px 16px 12px;margin-bottom:12px}
+    .form-panel .section-card{background:#fff;border:1px solid rgba(148,163,184,.14);border-radius:18px;padding:16px 16px 12px;margin-bottom:12px;overflow-x:auto}
     .supervisor-panel{background:var(--bg-supervisor)!important;color:#0f172a!important;border:1px solid rgba(148,163,184,.12);box-shadow:0 8px 32px rgba(15,23,42,.08);border-radius:18px}
-    .supervisor-panel .section-card{background:#fff;border:1px solid rgba(148,163,184,.12);border-radius:18px;padding:16px 16px 12px;margin-bottom:14px}
+    .supervisor-panel .section-card{background:#fff;border:1px solid rgba(148,163,184,.12);border-radius:18px;padding:16px 16px 12px;margin-bottom:14px;overflow-x:auto}
    .row{
   display:flex;
   gap:10px;
@@ -96,6 +96,11 @@
     .row .col{
       flex:1 1 0;
       min-width:0;
+    }
+    /* Mobile: campos com largura mínima para 2 por linha quando possível */
+    @media (max-width:480px){
+      .row .col{ min-width:calc(50% - 10px); }
+      .row .col:only-child, .row .col[style*="flex:3"], .row .col[style*="flex: 3"]{ min-width:100%; }
     }
 
     /* Ajustes específicos do card "Cadastro de Clientes" */
@@ -129,7 +134,7 @@
     .status-ok{background:rgba(16,185,129,.98);color:#022c22;border:1px solid rgba(22,163,74,.65)}
     .status-warn{background:rgba(234,179,8,.95);color:#422006;border:1px solid rgba(234,179,8,.75)}
     .status-bad{background:rgba(248,113,113,.94);color:#450a0a;border:1px solid rgba(248,113,113,.7)}
-    .user-table{width:100%;border-collapse:collapse;margin-top:10px;background:#f8fafc;border-radius:12px;overflow:hidden;font-size:.8rem}
+    .user-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}.user-table{width:100%;border-collapse:collapse;margin-top:10px;background:#f8fafc;border-radius:12px;overflow:hidden;font-size:.8rem}
     .user-table th,.user-table td{padding:8px 10px;border-bottom:1px solid rgba(148,163,184,.12);color:#0f172a}
     .user-table th{text-align:left;background:rgba(226,232,240,.85);font-weight:700;color:#0f172a}
     .user-table td{background:#fff;font-weight:500}
@@ -189,7 +194,7 @@
       to{ transform:translateY(-4px); opacity:1; }
     }
     .dash-cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-    .card-mini{background:linear-gradient(140deg,#0f172a 0%,#114f91 60%)!important;padding:10px 12px;border-radius:12px;min-width:140px;color:#fff;transition:transform .15s ease,box-shadow .15s ease;box-shadow:0 6px 18px rgba(17,79,145,.35);cursor:pointer}
+    .card-mini{background:linear-gradient(140deg,#0f172a 0%,#114f91 60%)!important;padding:10px 12px;border-radius:12px;min-width:140px;flex:1 1 140px;color:#fff;transition:transform .15s ease,box-shadow .15s ease;box-shadow:0 6px 18px rgba(17,79,145,.35);cursor:pointer}
     .card-mini:hover{transform:translateY(-3px);box-shadow:0 10px 25px rgba(17,79,145,.48)}
     #assinaturaClienteBox{margin-top:10px;background:#f8fafc;border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:8px 10px 12px}
     
@@ -199,7 +204,42 @@
     .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
     .filters .col{min-width:180px}
     .help{font-size:.7rem;color:#334155}
-    @media (max-width:880px){.sidebar{transform:translateX(-100%);transition:.2s;width:225px;z-index:100}.sidebar.open{transform:translateX(0)}.content{margin-left:0}.row{flex-direction:column}.main{padding:12px 10px}.report-box{width:100%;max-width:100%;height:100%;max-height:100vh;border-radius:0}.report-body{font-size:1.1rem}.sidebar-toggle{display:flex!important}.topbar{gap:10px}}
+    @media (max-width:880px){
+      .sidebar{transform:translateX(-100%);transition:.2s;width:225px;z-index:100}
+      .sidebar.open{transform:translateX(0)}
+      .content{margin-left:0}
+      /* Rows viram coluna */
+      .row{flex-direction:column;gap:6px}
+      .row .col{width:100%!important;flex:1 1 100%!important;min-width:0!important;max-width:100%!important}
+      .row .col input,.row .col select,.row .col textarea{width:100%!important;box-sizing:border-box!important}
+      /* Padding reduzido */
+      .main{padding:10px 8px}
+      .form-panel .section-card{padding:12px 10px 10px}
+      .supervisor-panel .section-card{padding:12px 10px 10px}
+      /* Relatório overlay */
+      .report-box{width:100%;max-width:100%;height:100%;max-height:100vh;border-radius:0}
+      .report-body{font-size:1rem}
+      /* Topbar */
+      .sidebar-toggle{display:flex!important}
+      .topbar{gap:8px;padding:8px 10px}
+      .topbar h1{font-size:1.1rem}
+      /* Tabelas com scroll horizontal */
+      .user-table{font-size:.72rem}
+      .user-table th,.user-table td{padding:6px 7px}
+      /* Dash cards empilham */
+      .dash-cards{flex-direction:column}
+      .dash-cards > div{width:100%!important}
+      /* Botões de ação nas tabelas */
+      .relatorio-acoes{flex-wrap:wrap;gap:4px}
+      .relatorio-acoes .btn{font-size:.7rem;padding:4px 8px}
+      /* Alinhamento flex-end -> flex-start no mobile */
+      .col[style*="justify-content:flex-end"]{justify-content:flex-start!important}
+      /* Filtros de busca */
+      .filters{flex-direction:column}
+      .filters .col{min-width:0!important;width:100%!important}
+      /* Font controls */
+
+    }
   
 .pill-toggle{
   display:inline-flex;
@@ -386,10 +426,7 @@ html[data-role="technician"] nav button {
 </head>
 <body>
 <!-- Font Controls -->
-<div id="fontControls" style="position:fixed;right:14px;top:72px;z-index:9999;display:flex;gap:6px">
-  <button id="fontDecrease" class="btn small" title="Diminuir fonte" style="padding:.35rem .6rem;border-radius:10px;">A–</button>
-  <button id="fontIncrease" class="btn small" title="Aumentar fonte" style="padding:.35rem .6rem;border-radius:10px;">A+</button>
-</div>
+
 
 <!-- LOGIN -->
 <section id="telaLogin" class="login-screen">
@@ -482,6 +519,10 @@ html[data-role="technician"] nav button {
         <small>Sistema de Relatórios Técnicos</small>
       </div>
       <div class="topbar-right">
+        <div id="fontControls" style="display:none;gap:4px;align-items:center;">
+          <button id="fontDecrease" class="btn small" title="Diminuir fonte" style="padding:.3rem .55rem;border-radius:10px;font-size:.8rem;">A–</button>
+          <button id="fontIncrease" class="btn small" title="Aumentar fonte" style="padding:.3rem .55rem;border-radius:10px;font-size:.8rem;">A+</button>
+        </div>
         <span class="badge-online">● Online</span>
       </div>
     </div>
@@ -509,7 +550,7 @@ html[data-role="technician"] nav button {
 
           <!-- RAT (DDMMAAAA-0001) e Data/Hora BR -->
           <div class="row">
-            <div class="col" style="max-width:320px;">
+            <div class="col" style="max-width:min(320px,100%);">
               <label>Número do Relatório (RAT)</label>
               <input id="aNumeroRat" readonly style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:700;background:#e2e8f0;">
             </div>
@@ -532,7 +573,7 @@ html[data-role="technician"] nav button {
                     <option value="">Selecione um cliente</option>
                   </select>
                 </div>
-                <div class="col" style="max-width:220px;">
+                <div class="col" style="max-width:min(220px,100%);">
                   <button class="btn small" id="btnClienteNaoLista"><i class="ri-edit-2-line"></i> Cliente não está na lista</button>
                 </div>
               </div>
@@ -592,18 +633,20 @@ html[data-role="technician"] nav button {
               <label>Cidade</label>
               <input id="aCidade" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500%;">
             </div>
-            <div class="col" style="max-width:140px;">
-              <label>CEP</label>
-              <input id="aCep" placeholder="29000-000" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
-            </div>
-            <div class="col" style="max-width:90px;">
-              <label>UF</label>
-              <input id="aUF" value="ES" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+            <div class="col" style="display:flex;gap:8px;align-items:flex-end;">
+              <div style="flex:2 1 0;min-width:0;">
+                <label>CEP</label>
+                <input id="aCep" placeholder="29000-000" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              </div>
+              <div style="flex:1 1 0;min-width:0;max-width:80px;">
+                <label>UF</label>
+                <input id="aUF" value="ES" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
+              </div>
             </div>
           </div>
 
           <div class="row" style="margin-top:6px;align-items:center;">
-            <div class="col" style="max-width:240px;">
+            <div class="col" style="max-width:min(240px,100%);">
               <label>Coordenadas (GPS)</label>
               <input id="aCoord" placeholder="-" readonly style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;background:#f8fafc;">
             </div>
@@ -611,7 +654,7 @@ html[data-role="technician"] nav button {
               <label>Link para Google Maps</label>
               <input id="aLinkMaps" placeholder="-" readonly style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;background:#f8fafc;">
             </div>
-            <div class="col" style="max-width:170px;display:flex;flex-direction:column;">
+            <div class="col" style="max-width:min(170px,100%);display:flex;flex-direction:column;">
               <label style="visibility:hidden;">Pegar localização</label>
               <button class="btn" id="btnPegarGps" style="width:100%;justify-content:center;"><i class="ri-map-pin-line"></i> Pegar localização</button>
               <input type="hidden" id="aLocalizacao">
@@ -918,7 +961,7 @@ html[data-role="technician"] nav button {
         <div class="section-card">
           <h3><i class="ri-search-line"></i> Busca de Relatórios</h3>
           <div class="filters" style="margin-bottom:8px;">
-            <div class="col" style="max-width:220px;">
+            <div class="col" style="max-width:min(220px,100%);">
               <label>Modo de busca</label>
               <select id="buscaModo" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
                 <option value="todos">Todos por data</option>
@@ -942,7 +985,7 @@ html[data-role="technician"] nav button {
               <label>Empresa</label>
               <select id="buscaEmpresa" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;"></select>
             </div>
-            <div class="col" style="max-width:150px;">
+            <div class="col" style="max-width:min(150px,100%);">
               <button class="btn" id="btnExecutarBusca"><i class="ri-filter-3-line"></i> Buscar</button>
             </div>
           </div>
@@ -960,7 +1003,7 @@ html[data-role="technician"] nav button {
             <div class="col">
               <input id="filtroTexto" placeholder="Cliente, técnico, cidade, nº relatório..." style="width:100%;padding:6px 10px;border:1px solid rgba(148,163,184,.35);border-radius:10px;color:#0f172a;font-size:.72rem;">
             </div>
-            <div class="col" style="display:flex;gap:6px;max-width:250px;">
+            <div class="col" style="display:flex;gap:6px;max-width:min(250px,100%);">
               <select id="filtroStatus" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;font-size:.72rem;">
                 <option value="">Status (todos)</option>
                 <option value="Concluído">Concluído</option>
@@ -995,7 +1038,7 @@ html[data-role="technician"] nav button {
               <label>Telefone</label>
               <input id="novoClienteTelefone" placeholder="(27) 99999-0000" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
-            <div class="col" style="max-width:140px;">
+            <div class="col" style="max-width:min(140px,100%);">
               <label>CEP</label>
               <input id="novoClienteCep" placeholder="29000-000" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
@@ -1014,7 +1057,7 @@ html[data-role="technician"] nav button {
               <label>Cidade</label>
               <input id="novoClienteCidade" placeholder="Vitória" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;">
             </div>
-            <div class="col" style="max-width:90px;">
+            <div class="col" style="max-width:min(90px,100%);">
               <label>UF</label>
               <input id="novoClienteUF" placeholder="ES" maxlength="2" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;text-transform:uppercase;">
             </div>
@@ -1027,7 +1070,7 @@ html[data-role="technician"] nav button {
             Os clientes cadastrados aqui ficarão disponíveis para os técnicos selecionarem no formulário de novo atendimento.
           </p>
 
-          <table class="user-table" id="tabelaClientes">
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="user-table" id="tabelaClientes">
             <thead>
               <tr>
                 <th>Empresa</th>
@@ -1043,6 +1086,7 @@ html[data-role="technician"] nav button {
             </thead>
             <tbody></tbody>
           </table>
+</div>
 
         <!-- GESTÃO DE EQUIPAMENTOS -->
 <!-- GESTÃO DE EQUIPAMENTOS -->
@@ -1098,7 +1142,7 @@ html[data-role="technician"] nav button {
             que foi fornecido um equipamento de estoque.
           </p>
 
-          <table class="user-table" id="tabelaEquipamentos">
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="user-table" id="tabelaEquipamentos">
             <thead>
               <tr>
                 <th>Tipo</th>
@@ -1112,6 +1156,7 @@ html[data-role="technician"] nav button {
             </thead>
             <tbody></tbody>
           </table>
+</div>
         </div>
 
   </div>
@@ -1148,7 +1193,7 @@ html[data-role="technician"] nav button {
             Os usuários cadastrados aqui farão login no sistema. A senha será definida no primeiro acesso.
           </p>
 
-    <table class="user-table" id="tabelaUsuarios">
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="user-table" id="tabelaUsuarios">
   <thead>
     <tr>
       <th>Nome</th>
@@ -1159,6 +1204,7 @@ html[data-role="technician"] nav button {
   </thead>
   <tbody id="tbUsuariosBody"></tbody>
 </table>
+</div>
 
 
         <!-- CONFIGURAÇÕES DO SISTEMA -->
@@ -1183,12 +1229,12 @@ html[data-role="technician"] nav button {
 <div style="height:1px;background:rgba(148,163,184,.25);margin:12px 0;"></div>
           <h4 style="margin:6px 0 8px 0;font-size:.9rem;display:flex;gap:6px;align-items:center;"><i class="ri-image-add-line"></i> Logo da empresa (PDF e telas)</h4>
           <div class="row" style="align-items:flex-end;gap:10px;">
-            <div class="col" style="max-width:300px;">
+            <div class="col" style="max-width:min(300px,100%);">
               <label>Selecionar imagem (PNG/JPG)</label>
               <input type="file" id="inputLogoFile" accept="image/*" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;background:#fff;">
               <small class="help">A imagem será salva localmente e usada automaticamente na geração do PDF.</small>
             </div>
-            <div class="col" style="max-width:150px;">
+            <div class="col" style="max-width:min(150px,100%);">
               <div id="logoPreviewWrap" style="background:#fff;border:1px dashed rgba(148,163,184,.5);border-radius:10px;padding:8px;display:flex;align-items:center;justify-content:center;width:140px;height:60px;">
                 <img id="logoPreview" alt="Prévia da logo" style="max-width:120px;max-height:44px;display:none;">
                 <span id="logoPreviewEmpty" style="font-size:.7rem;color:#64748b;">(sem logo)</span>
@@ -1233,7 +1279,7 @@ html[data-role="technician"] nav button {
           </p>
 
           <!-- Filtros -->
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1.5fr auto;gap:10px;align-items:end;margin-bottom:14px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;margin-bottom:14px;">
             <div>
               <label style="display:block;font-size:.72rem;font-weight:600;color:#334155;margin-bottom:4px;">De (dd/mm/aaaa)</label>
               <input id="auditDataIni" placeholder="01/01/2025"
@@ -2879,6 +2925,7 @@ function autoFillCamposAtendimento(){
     telaLogin.style.setProperty('pointer-events', 'none', 'important');
     telaLogin.style.setProperty('z-index', '-1', 'important');
     telaLogin.classList.add('hidden');
+    var fc = document.getElementById('fontControls'); if (fc) { fc.style.display = 'flex'; fc.style.gap = '4px'; }
     // Remove do DOM para garantir que NADA re-exiba
     try { telaLogin.parentNode.removeChild(telaLogin); } catch(e){}
     
