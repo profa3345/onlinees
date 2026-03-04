@@ -5685,76 +5685,75 @@ function aplicarPermissoesConfiguracoes(){
   setTimeout(autoBackupFirestore, 30000);
 
   // === LISTAR E RESTAURAR BACKUPS DO FIREBASE ===
-  async function _garantirFirebaseAuth() {
-    // Se já está autenticado no Firebase, ok
-    const _auth = window._firebaseAuth;
-    if (_auth && _auth.currentUser) return true;
-    if (!_auth || !navigator.onLine) return false;
-    // Tenta re-autenticar com as credenciais do usuário logado localmente
-    const u = window.usuarioLogado;
-    if (!u || !u.username) return false;
-    // Pede a senha ao usuário
-    const senha = prompt('Para acessar o banco de dados, confirme sua senha:');
-    if (!senha) return false;
-    try {
-      const emailAuth = u.username.toLowerCase().replace(/[^a-z0-9._-]/g,'') + '@' + AUTH_DOMAIN;
-      await _auth.signInWithEmailAndPassword(emailAuth, senha);
-      console.log('Re-autenticação Firebase bem-sucedida.');
-      return true;
-    } catch(e) {
-      console.warn('Re-autenticação falhou:', e.code, e.message);
-      alert('Senha incorreta ou usuário não cadastrado no Firebase Auth.');
-      return false;
+  // Busca backups via REST API do Firestore (não depende do Firebase Auth SDK)
+  async function _fetchBackupsREST() {
+    const projectId = firebaseConfig.projectId;
+    const apiKey    = firebaseConfig.apiKey;
+    // Firestore REST: lista documentos da coleção ordenados por generatedAt desc
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/onlineEsBackups?key=${apiKey}&pageSize=30`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error && err.error.message ? err.error.message : `HTTP ${resp.status}`);
     }
+    const json = await resp.json();
+    return (json.documents || []).map(doc => {
+      const fields = doc.fields || {};
+      const id = doc.name.split('/').pop();
+      // Converte campos Firestore REST format para objeto simples
+      const get = (f) => {
+        if (!fields[f]) return null;
+        return fields[f].stringValue || fields[f].integerValue || fields[f].timestampValue || null;
+      };
+      // data é um mapValue com chaves = localStorage keys
+      let data = null;
+      if (fields.data && fields.data.mapValue && fields.data.mapValue.fields) {
+        data = {};
+        Object.entries(fields.data.mapValue.fields).forEach(([k, v]) => {
+          data[k] = v.stringValue !== undefined ? v.stringValue : JSON.stringify(v);
+        });
+      }
+      return {
+        id,
+        generatedAt: get('generatedAt') || id,
+        geradoPor:   get('geradoPor') || 'sistema',
+        timestamp:   get('timestamp'),
+        data
+      };
+    }).sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
   }
 
   async function listarBackupsFirebase() {
     const container = document.getElementById('listaBackupsFirebase');
     if (!container) return;
 
-    if (!isAdmin()) {
-      alert('Restaurar backup é exclusivo do Administrador.');
-      return;
-    }
-
-    const _db = (typeof window._getDb === 'function') ? window._getDb() : null;
-    if (!_db) { alert('Firebase não disponível. Verifique sua conexão.'); return; }
+    if (!isAdmin()) { alert('Restaurar backup é exclusivo do Administrador.'); return; }
     if (!navigator.onLine) { alert('Sem conexão com a internet.'); return; }
 
     container.style.display = 'block';
-    container.innerHTML = '<p style="color:#64748b;font-size:.82rem;"><i class="ri-loader-4-line"></i> Verificando autenticação...</p>';
-
-    // Garante que o Firebase Auth está ativo antes de consultar
-    const authOk = await _garantirFirebaseAuth();
-    if (!authOk) {
-      container.style.display = 'none';
-      return;
-    }
-
-    container.innerHTML = '<p style="color:#64748b;font-size:.82rem;"><i class="ri-loader-4-line"></i> Buscando backups no Firebase...</p>';
+    container.innerHTML = '<p style="color:#64748b;font-size:.82rem;"><i class="ri-loader-4-line"></i> Buscando backups no banco...</p>';
 
     try {
-      const snap = await _db.collection('onlineEsBackups').orderBy('generatedAt', 'desc').limit(30).get();
+      const backups = await _fetchBackupsREST();
 
-      if (snap.empty) {
-        container.innerHTML = '<p style="color:#64748b;font-size:.82rem;">Nenhum backup encontrado no Firebase.</p>';
+      if (!backups.length) {
+        container.innerHTML = '<p style="color:#64748b;font-size:.82rem;">Nenhum backup encontrado no banco.</p>';
         return;
       }
 
       let html = '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-top:4px;">';
-      html += '<div style="background:#f8fafc;padding:8px 12px;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">BACKUPS DISPONÍVEIS NO FIREBASE</div>';
+      html += '<div style="background:#f8fafc;padding:8px 12px;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">BACKUPS DISPONÍVEIS NO BANCO</div>';
 
-      snap.forEach(doc => {
-        const d = doc.data();
-        const dataFmt = d.generatedAt || doc.id;
-        const geradoPor = d.geradoPor || 'sistema';
-        const ts = d.timestamp && d.timestamp.toDate ? d.timestamp.toDate().toLocaleString('pt-BR') : dataFmt;
+      backups.forEach(b => {
+        const dataFmt = b.generatedAt || b.id;
+        const geradoPor = b.geradoPor || 'sistema';
+        const ts = b.timestamp ? new Date(b.timestamp).toLocaleString('pt-BR') : dataFmt;
         html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid #f1f5f9;gap:8px;">
           <div>
             <div style="font-weight:600;font-size:.85rem;">${dataFmt}</div>
             <div style="font-size:.75rem;color:#64748b;">${ts} · por ${esc(geradoPor)}</div>
           </div>
-          <button class="btn small" data-restore-id="${doc.id}"
+          <button class="btn small" data-restore-id="${b.id}"
             style="background:#dcfce7;color:#15803d;border-color:#bbf7d0;white-space:nowrap;">
             <i class="ri-arrow-go-back-line"></i> Restaurar
           </button>
@@ -5764,6 +5763,7 @@ function aplicarPermissoesConfiguracoes(){
       html += '</div>';
       html += '<button id="btnFecharListaBackups" style="margin-top:8px;background:none;border:none;color:#64748b;font-size:.78rem;cursor:pointer;"><i class="ri-close-line"></i> Fechar lista</button>';
       container.innerHTML = html;
+      container._backupsCache = backups;
 
       document.getElementById('btnFecharListaBackups')?.addEventListener('click', () => {
         container.style.display = 'none';
@@ -5772,84 +5772,57 @@ function aplicarPermissoesConfiguracoes(){
       container.querySelectorAll('[data-restore-id]').forEach(btn => {
         btn.onclick = async () => {
           const docId = btn.getAttribute('data-restore-id');
-          await restaurarBackupFirebase(docId);
+          const b = (container._backupsCache || []).find(x => x.id === docId);
+          await restaurarBackupFirebase(docId, b ? b.data : null);
         };
       });
 
     } catch(e) {
       console.error('Erro ao listar backups:', e);
-      const isPerm = e.message && (e.message.includes('permission') || e.message.includes('insufficient'));
-      if (isPerm) {
-        container.innerHTML = `
-          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;">
-            <div style="font-weight:700;color:#dc2626;margin-bottom:6px;"><i class="ri-shield-keyhole-line"></i> Permissão negada no Firebase</div>
-            <p style="font-size:.8rem;color:#7f1d1d;margin:0 0 10px;">Para habilitar, acesse o <strong>Firebase Console → Firestore → Regras</strong> e substitua as regras por:</p>
-            <pre id="preRegrasCopy" style="background:#1e293b;color:#86efac;font-size:.72rem;padding:10px;border-radius:8px;overflow-x:auto;white-space:pre-wrap;margin:0 0 8px;">rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /onlineEsRelatorios/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsUsuarios/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsClientes/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsEquipamentos/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsBackups/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsAuditoria/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /onlineEsContador/{id} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}</pre>
-            <button onclick="navigator.clipboard.writeText(document.getElementById('preRegrasCopy').textContent).then(()=>showToast('Regras copiadas!'))"
-              class="btn small" style="margin-bottom:4px;"><i class="ri-clipboard-line"></i> Copiar regras</button>
-            <p style="font-size:.75rem;color:#64748b;margin:6px 0 0;">Após salvar as regras no Firebase, clique em <strong>Restaurar do Banco</strong> novamente.</p>
-          </div>`;
-      } else {
-        container.innerHTML = `<p style="color:#dc2626;font-size:.82rem;">Erro ao buscar backups: ${esc(e.message || String(e))}</p>`;
-      }
+      container.innerHTML = `<p style="color:#dc2626;font-size:.82rem;"><i class="ri-error-warning-line"></i> Erro: ${esc(e.message || String(e))}</p>`;
     }
   }
 
-  async function restaurarBackupFirebase(docId) {
+    async function restaurarBackupFirebase(docId, dadosCache) {
     if (!isAdmin()) { alert('Apenas o Administrador pode restaurar backups.'); return; }
-
-    const _db = (typeof window._getDb === 'function') ? window._getDb() : null;
-    if (!_db) { alert('Firebase não disponível.'); return; }
-
-    const authOk = await _garantirFirebaseAuth();
-    if (!authOk) return;
+    if (!navigator.onLine) { alert('Sem conexão com a internet.'); return; }
 
     const ok = confirm(`Restaurar o backup do dia ${docId}?\n\nIsso substituirá TODOS os dados locais (relatórios, clientes, equipamentos).\n\nTem certeza?`);
     if (!ok) return;
 
     try {
-      const doc = await _db.collection('onlineEsBackups').doc(docId).get();
-      if (!doc.exists) { alert('Backup não encontrado.'); return; }
+      let data = dadosCache;
 
-      const d = doc.data();
-      if (!d || !d.data || typeof d.data !== 'object') {
+      // Se não temos os dados em cache, busca via REST
+      if (!data) {
+        const projectId = firebaseConfig.projectId;
+        const apiKey    = firebaseConfig.apiKey;
+        const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/onlineEsBackups/${docId}?key=${apiKey}`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = await resp.json();
+        const fields = (json.fields || {});
+        if (fields.data && fields.data.mapValue && fields.data.mapValue.fields) {
+          data = {};
+          Object.entries(fields.data.mapValue.fields).forEach(([k, v]) => {
+            data[k] = v.stringValue !== undefined ? v.stringValue : JSON.stringify(v);
+          });
+        }
+      }
+
+      if (!data || typeof data !== 'object') {
         alert('Backup corrompido ou formato inválido.');
         return;
       }
 
       // Aplica cada chave no localStorage
       let count = 0;
-      Object.entries(d.data).forEach(([k, v]) => {
+      Object.entries(data).forEach(([k, v]) => {
         try { localStorage.setItem(k, v); count++; } catch(e) {}
       });
 
       showToast(`Backup de ${docId} restaurado (${count} registros). Recarregando...`);
-      try { logInfo('Backup Firebase restaurado', { docId, count }); } catch(e) {}
+      try { logInfo('Backup restaurado do banco', { docId, count }); } catch(e) {}
       setTimeout(() => location.reload(), 1200);
 
     } catch(e) {
