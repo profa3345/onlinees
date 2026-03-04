@@ -804,12 +804,22 @@ html[data-role="technician"] nav button {
 <div class="row" style="margin-top:6px;">
   <div class="col">
     <label>Observações</label>
-    <textarea id="dObservacoes" rows="3"
+    <textarea id="dObs" rows="3"
       style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);
       border-radius:12px;resize:vertical;color:#0f172a;font-weight:500;"
       placeholder="Ex.: estado geral das baterias, medições, recomendações, pendências, orientações ao cliente..."></textarea>
   </div>
 </div>
+
+        <!-- UPLOAD FOTOS BATERIAS -->
+        <div class="row" style="margin-top:8px;">
+          <div class="col">
+            <label style="font-size:.75rem;font-weight:600;color:#0f172a;">Fotos / Vídeos das baterias</label>
+            <input type="file" id="dUpload" multiple accept="image/*,video/*"
+              style="margin-top:4px;font-size:.72rem;color:#0f172a;">
+            <div id="dPreview" class="preview-list"></div>
+          </div>
+        </div>
 
         <!-- ASSINATURA DIGITAL DO CLIENTE -->
         <div class="section-card" id="assinaturaClienteBox">
@@ -2578,7 +2588,7 @@ function autoFillCamposAtendimento(){
   const btnMostrarTodos = document.getElementById('btnMostrarTodos');
   const btnMostrarNaoVistos = document.getElementById('btnMostrarNaoVistos');
 
-  const tabelaUsuarios = document.getElementById('tabelaUsuarios').querySelector('tbody');
+  const tabelaUsuarios = document.getElementById('tabelaUsuarios') ? document.getElementById('tabelaUsuarios').querySelector('tbody') : null;
 
   if (tabelaUsuarios){
     tabelaUsuarios.addEventListener('click', function(ev){
@@ -2913,30 +2923,17 @@ function autoFillCamposAtendimento(){
   }
 
   function entrarSistema(user){
-    console.log('🚀 entrarSistema: INICIO, user=', user ? user.username : 'NULL');
-    // Garante que o usuário logado está setado antes de qualquer log
     window.usuarioLogado = user;
     try { usuarioLogado = user; } catch(e){}
 
-    console.log('🚀 entrarSistema: Escondendo telaLogin, mostrando app...');
-    
-    // FORÇA BRUTAL: esconde telaLogin de todas as formas possíveis
-    telaLogin.style.setProperty('display', 'none', 'important');
-    telaLogin.style.setProperty('visibility', 'hidden', 'important');
-    telaLogin.style.setProperty('opacity', '0', 'important');
-    telaLogin.style.setProperty('pointer-events', 'none', 'important');
-    telaLogin.style.setProperty('z-index', '-1', 'important');
+    // Esconde login, mostra app
+    telaLogin.style.display = 'none';
     telaLogin.classList.add('hidden');
-    var fc = document.getElementById('fontControls'); if (fc) { fc.style.display = 'flex'; fc.style.gap = '4px'; }
-    // Remove do DOM para garantir que NADA re-exiba
-    try { telaLogin.parentNode.removeChild(telaLogin); } catch(e){}
-    
-    // FORÇA BRUTAL: mostra app
-    app.style.setProperty('display', 'flex', 'important');
-    app.style.setProperty('visibility', 'visible', 'important');
-    app.style.setProperty('opacity', '1', 'important');
-    
-    console.log('🚀 entrarSistema: telaLogin.display=', getComputedStyle(telaLogin).display, 'app.display=', getComputedStyle(app).display);
+    app.style.display = 'flex';
+    app.style.visibility = 'visible';
+    app.style.opacity = '1';
+    var fc = document.getElementById('fontControls');
+    if (fc) { fc.style.display = 'flex'; fc.style.gap = '4px'; }
     userName.textContent = user.fullName || user.username;
     userRole.textContent = roleLabel(user.role);
     aTecnico.value = user.fullName || user.username;
@@ -3015,11 +3012,11 @@ function autoFillCamposAtendimento(){
     } else {
       mPainel.classList.remove('hidden');
       mostrarTela('painel').catch(e=>console.warn('Erro ao abrir tela:', e));
-      renderUsuarios();
-      renderClientes();
-      renderEquipamentos();
-      renderLista();
-      atualizarDashboard();
+      try { renderUsuarios(); } catch(e){ console.warn('renderUsuarios:', e); }
+      try { renderClientes(); } catch(e){ console.warn('renderClientes:', e); }
+      try { renderEquipamentos(); } catch(e){ console.warn('renderEquipamentos:', e); }
+      try { renderLista(); } catch(e){ console.warn('renderLista:', e); }
+      try { atualizarDashboard(); } catch(e){ console.warn('atualizarDashboard:', e); }
       aplicarPermissoesConfiguracoes();
     // Sync já é chamado acima para todos os perfis
 
@@ -3254,8 +3251,8 @@ function autoFillCamposAtendimento(){
     listaRelatorios.innerHTML='';
     if (modoListaSupervisor==='none'){ listaRelatorios.innerHTML='<p style="font-size:.72rem;color:#0f172a;">Selecione uma opção acima para listar os relatórios.</p>'; return; }
 
-    const f = (filtroTexto.value||'').trim().toLowerCase();
-    const fs = filtroStatus.value;
+    const f = (filtroTexto ? filtroTexto.value||'' : '').trim().toLowerCase();
+    const fs = filtroStatus ? filtroStatus.value : '';
 
     let data = relatorios.filter(r=>{
       let ok = true;
@@ -3775,7 +3772,9 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
   }
 
 function renderClientes(){
-  const tbody = document.getElementById('tabelaClientes').querySelector('tbody');
+  const tabelaClientes_ = document.getElementById('tabelaClientes');
+  const tbody = tabelaClientes_ ? tabelaClientes_.querySelector('tbody') : null;
+  if (!tbody) return;
   tbody.innerHTML = '';
 
   (clientes || []).forEach(c => {
@@ -3965,14 +3964,15 @@ document.getElementById('btnAddCliente').onclick=()=>{
 
 
   function atualizarDashboard(){
-    const hojeIso = new Date(); hojeIso.setHours(0,0,0,0);
-    const todayStr = hojeIso.toISOString().slice(0,10);
-    const rHoje = relatorios.filter(r=>(r.dataHoraIso||r.dataHora).slice(0,10)===todayStr);
-    dHoje.textContent = rHoje.length;
-    
-dConcluidosHoje.textContent = rHoje.filter(r=>r.status==='Concluído').length;
-    dConcluidosGeral.textContent = relatorios.filter(r=>r.status==='Concluído').length;
-    dPendentes.textContent = relatorios.filter(r=>r.status!=='Concluído').length;
+    try {
+      const hojeIso = new Date(); hojeIso.setHours(0,0,0,0);
+      const todayStr = hojeIso.toISOString().slice(0,10);
+      const rHoje = relatorios.filter(r=>(r.dataHoraIso||r.dataHora||'').slice(0,10)===todayStr);
+      if (dHoje) dHoje.textContent = rHoje.length;
+      if (dConcluidosHoje) dConcluidosHoje.textContent = rHoje.filter(r=>r.status==='Concluído').length;
+      if (dConcluidosGeral) dConcluidosGeral.textContent = relatorios.filter(r=>r.status==='Concluído').length;
+      if (dPendentes) dPendentes.textContent = relatorios.filter(r=>r.status!=='Concluído').length;
+    } catch(e) { console.warn('atualizarDashboard:', e); }
   }
 
   // Cards filtro rápido
@@ -4351,20 +4351,31 @@ if (logoBase64) {
 // Auxiliares
   function gerarId(){ return 'id-'+Math.random().toString(36).slice(2)+Date.now().toString(36); }
   function coletarMidiasPreview(container){
-    const items = Array.from(container.querySelectorAll('.preview-item'));
-    const imgs=[], vids=[];
-    items.forEach(div=>{
-      const img = div.querySelector('img'); const vid = div.querySelector('video');
-      if (img) imgs.push(img.src);
-      if (vid) vids.push(vid.src);
-    });
-    return {imgs, vids};
+    try {
+      if (!container || typeof container.querySelectorAll !== 'function' || (container.isConnected === false)) return {imgs:[], vids:[]};
+      const items = Array.from(container.querySelectorAll('.preview-item') || []);
+      const imgs=[], vids=[];
+      items.forEach(div=>{
+        try {
+          const img = div ? div.querySelector('img') : null;
+          const vid = div ? div.querySelector('video') : null;
+          if (img && img.src) imgs.push(img.src);
+          if (vid && vid.src) vids.push(vid.src);
+        } catch(e){}
+      });
+      return {imgs, vids};
+    } catch(e) {
+      console.warn('coletarMidiasPreview erro:', e);
+      return {imgs:[], vids:[]};
+    }
   }
 
   function montarRelatorioAtual(){
-    const midEquip = coletarMidiasPreview(document.getElementById('bPreview'));
-    const midServ  = coletarMidiasPreview(document.getElementById('cPreview'));
-    const midBat   = coletarMidiasPreview(document.getElementById('dPreview'));
+    window.montarRelatorioAtual = montarRelatorioAtual;
+    var midEquip = {imgs:[], vids:[]}, midServ = {imgs:[], vids:[]}, midBat = {imgs:[], vids:[]};
+    try { midEquip = coletarMidiasPreview(document.getElementById('bPreview')); } catch(e){ console.warn('midEquip:', e); }
+    try { midServ  = coletarMidiasPreview(document.getElementById('cPreview')); } catch(e){ console.warn('midServ:', e); }
+    try { midBat   = coletarMidiasPreview(document.getElementById('dPreview')); } catch(e){ console.warn('midBat:', e); }
 
     const br = (aDataHoraBR.value||'').trim();
     const iso = brToISO(br) || new Date(new Date().getTime()-new Date().getTimezoneOffset()*60000).toISOString();
@@ -4383,38 +4394,38 @@ if (logoBase64) {
       tecnicoLogin: (usuarioLogado ? (usuarioLogado.username || '') : ''),
       cliente: clienteNome,
       clienteManual: !!clienteManualAtivo,
-      contato: document.getElementById('aContato').value,
-      telefone: document.getElementById('aTelefone').value,
-      whatsapp: formatarWhatsParaEnvio(document.getElementById('aWhats').value),
-      endereco: document.getElementById('aEndereco').value,
-      bairro: document.getElementById('aBairro').value,
-      cidade: document.getElementById('aCidade').value,
+      contato: (document.getElementById('aContato') ? document.getElementById('aContato').value : ''),
+      telefone: (document.getElementById('aTelefone') ? document.getElementById('aTelefone').value : ''),
+      whatsapp: formatarWhatsParaEnvio((document.getElementById('aWhats') ? document.getElementById('aWhats').value : '')),
+      endereco: (document.getElementById('aEndereco') ? document.getElementById('aEndereco').value : ''),
+      bairro: (document.getElementById('aBairro') ? document.getElementById('aBairro').value : ''),
+      cidade: (document.getElementById('aCidade') ? document.getElementById('aCidade').value : ''),
       cepCliente: (aCep && aCep.value) ? aCep.value.trim() : '',
-      uf: document.getElementById('aUF').value,
+      uf: (document.getElementById('aUF') ? document.getElementById('aUF').value : ''),
       cnpjCliente: (aCnpj && aCnpj.value) ? aCnpj.value.trim() : '',
       docClienteTipo: (typeof tipoDocCliente !== 'undefined' ? tipoDocCliente : 'CNPJ'),
       emailCliente: (aEmailCliente && aEmailCliente.value) ? aEmailCliente.value.trim() : '',
-      localizacao: document.getElementById('aLocalizacao').value,
-      localizacaoCoordenadas: document.getElementById('aCoord').value,
-      localizacaoLink: document.getElementById('aLinkMaps').value,
-      equipamento: document.getElementById('bEquipamento').value,
-      serie: document.getElementById('bSerie').value,
-      kva: document.getElementById('bKVA').value,
+      localizacao: (document.getElementById('aLocalizacao') ? document.getElementById('aLocalizacao').value : ''),
+      localizacaoCoordenadas: (document.getElementById('aCoord') ? document.getElementById('aCoord').value : ''),
+      localizacaoLink: (document.getElementById('aLinkMaps') ? document.getElementById('aLinkMaps').value : ''),
+      equipamento: (document.getElementById('bEquipamento') ? document.getElementById('bEquipamento').value : ''),
+      serie: (document.getElementById('bSerie') ? document.getElementById('bSerie').value : ''),
+      kva: (document.getElementById('bKVA') ? document.getElementById('bKVA').value : ''),
       tensaoEntrada: (bTensaoEntrada && bTensaoEntrada.value) ? bTensaoEntrada.value.trim() : '',
       tensaoSaida: (bTensaoSaida && bTensaoSaida.value) ? bTensaoSaida.value.trim() : '',
-      localInstalacao: document.getElementById('bLocal').value,
-      condicao: document.getElementById('bCondicao').value,
-      fornecidoEstoque: document.getElementById('aFornecidoEstoque').value,
-      equipEstoqueId: document.getElementById('aEquipEstoque').value,
-      tipo: document.getElementById('cTipo').value,
-      status: document.getElementById('cStatus').value,
-      problema: document.getElementById('cProblema').value,
-      diagnostico: document.getElementById('cDiagnostico').value,
-      acoes: document.getElementById('cAcoes').value ? document.getElementById('cAcoes').value.split('\n') : [],
-      pecas: document.getElementById('cPecas').value,
-      bateriasQtd: document.getElementById('dBatQtd').value,
-      bateriasTensao: document.getElementById('dBatTensao').value,
-      bateriasObs: document.getElementById('dObs').value,
+      localInstalacao: (document.getElementById('bLocal') ? document.getElementById('bLocal').value : ''),
+      condicao: (document.getElementById('bCondicao') ? document.getElementById('bCondicao').value : ''),
+      fornecidoEstoque: (document.getElementById('aFornecidoEstoque') ? document.getElementById('aFornecidoEstoque').value : ''),
+      equipEstoqueId: (document.getElementById('aEquipEstoque') ? document.getElementById('aEquipEstoque').value : ''),
+      tipo: (document.getElementById('cTipo') ? document.getElementById('cTipo').value : ''),
+      status: (document.getElementById('cStatus') ? document.getElementById('cStatus').value : ''),
+      problema: (document.getElementById('cProblema') ? document.getElementById('cProblema').value : ''),
+      diagnostico: (document.getElementById('cDiagnostico') ? document.getElementById('cDiagnostico').value : ''),
+      acoes: (document.getElementById('cAcoes') ? (document.getElementById('cAcoes').value || '').split('\n') : []),
+      pecas: (document.getElementById('cPecas') ? document.getElementById('cPecas').value : ''),
+      bateriasQtd: (document.getElementById('dBatQtd') ? document.getElementById('dBatQtd').value : ''),
+      bateriasTensao: (document.getElementById('dBatTensao') ? document.getElementById('dBatTensao').value : ''),
+      bateriasObs: (document.getElementById('dObs') ? document.getElementById('dObs').value : ''),
       visto: false,
       imgsEquip: midEquip.imgs, imgsServico: midServ.imgs, imgsBaterias: midBat.imgs,
       vidsEquip: midEquip.vids, vidsServico: midServ.vids, vidsBaterias: midBat.vids,
@@ -4425,6 +4436,32 @@ if (logoBase64) {
         : '')
     };
   }
+  // Safety wrapper that catches any remaining errors in montarRelatorioAtual
+  var _montarRelatorioAtual_orig = montarRelatorioAtual;
+  function montarRelatorioAtual(){
+    try {
+      return _montarRelatorioAtual_orig();
+    } catch(e) {
+      console.error('montarRelatorioAtual ERRO:', e.stack || e);
+      // Return minimal safe object so callers don't also crash
+      return {
+        id: 'err-' + Date.now(),
+        numero: '', dataHoraBr: '', dataHoraIso: new Date().toISOString(),
+        tecnico: '', tecnicoLogin: '', cliente: '', contato: '', telefone: '',
+        whatsapp: '', endereco: '', bairro: '', cidade: '', uf: '', cnpjCliente: '',
+        emailCliente: '', localizacao: '', localizacaoCoordenadas: '', localizacaoLink: '',
+        equipamento: '', serie: '', kva: '', tensaoEntrada: '', tensaoSaida: '',
+        localInstalacao: '', condicao: '', fornecidoEstoque: '', equipEstoqueId: '',
+        tipo: '', status: '', problema: '', diagnostico: '', acoes: [], pecas: '',
+        bateriasQtd: '', bateriasTensao: '', bateriasObs: '',
+        imgsEquip: [], imgsServico: [], imgsBaterias: [],
+        vidsEquip: [], vidsServico: [], vidsBaterias: [],
+        assinaturaCliente: null, assinaturaTecnicoImg: null, nomeAssinaturaCliente: '',
+        visto: false, _erro: e.message
+      };
+    }
+  }
+  window.montarRelatorioAtual = montarRelatorioAtual;
 
     function garantirCadastroNovoClienteInline(){
     if (!aClienteManual) return;
@@ -4482,6 +4519,7 @@ if (logoBase64) {
   }
 
   function validarObrigatorios(){
+    window.validarObrigatorios = validarObrigatorios;
     const usandoManual = (aClienteManual && aClienteManual.style.display==='block');
     const temCliente = usandoManual ? (aClienteManual.value||'').trim() : (aClienteSelect.value||'').trim();
     if (!temCliente){ showToast('O campo "Cliente / Empresa" é obrigatório.'); return false; }
@@ -4523,8 +4561,13 @@ if (logoBase64) {
       clearInterval(relogioAtendimentoTimer);
       relogioAtendimentoTimer = null;
     }
-    const novo = montarRelatorioAtual();
-    baixarEstoqueEquipamentoSelecionado(novo);
+    var novo;
+    try { novo = montarRelatorioAtual(); } catch(e) {
+      console.error('montarRelatorioAtual falhou:', e);
+      showToast('Erro ao montar relatório: ' + e.message);
+      return;
+    }
+    try { baixarEstoqueEquipamentoSelecionado(novo); } catch(e){}
 
     if (navigator.onLine){
       relatorios.push(novo); saveRelatorios(relatorios); ultimoRelatorioDoTecnico = novo;
@@ -4608,26 +4651,26 @@ if (logoBase64) {
         if (r.cnpj && aCnpj) aCnpj.value = r.cnpj;
 
         // Equipamento
-        if (r.equipamento) document.getElementById('bEquipamento').value = r.equipamento || '';
+        if (r.equipamento) { const _el = document.getElementById('bEquipamento'); if (_el) _el.value = r.equipamento || ''; }
         if (r.marca) document.getElementById('bMarca').value = r.marca || '';
         if (r.modelo) document.getElementById('bModelo').value = r.modelo || '';
-        if (r.serie) document.getElementById('bSerie').value = r.serie || '';
-        if (r.kva) document.getElementById('bKVA').value = r.kva || '';
-        if (r.localInstalacao) document.getElementById('bLocal').value = r.localInstalacao || '';
-        if (r.condicao) document.getElementById('bCondicao').value = r.condicao || '';
+        if (r.serie) { const _el = document.getElementById('bSerie'); if (_el) _el.value = r.serie || ''; }
+        if (r.kva) { const _el = document.getElementById('bKVA'); if (_el) _el.value = r.kva || ''; }
+        if (r.localInstalacao) { const _el = document.getElementById('bLocal'); if (_el) _el.value = r.localInstalacao || ''; }
+        if (r.condicao) { const _el = document.getElementById('bCondicao'); if (_el) _el.value = r.condicao || ''; }
 
         // Serviço
-        if (r.tipo) document.getElementById('cTipo').value = r.tipo || '';
-        if (r.status) document.getElementById('cStatus').value = r.status || '';
-        if (r.problema) document.getElementById('cProblema').value = r.problema || '';
-        if (r.diagnostico) document.getElementById('cDiagnostico').value = r.diagnostico || '';
-        if (r.acoes && Array.isArray(r.acoes)) document.getElementById('cAcoes').value = r.acoes.join('\n');
-        if (r.pecas) document.getElementById('cPecas').value = r.pecas || '';
+        if (r.tipo) { const _el = document.getElementById('cTipo'); if (_el) _el.value = r.tipo || ''; }
+        if (r.status) { const _el = document.getElementById('cStatus'); if (_el) _el.value = r.status || ''; }
+        if (r.problema) { const _el = document.getElementById('cProblema'); if (_el) _el.value = r.problema || ''; }
+        if (r.diagnostico) { const _el = document.getElementById('cDiagnostico'); if (_el) _el.value = r.diagnostico || ''; }
+if (r.acoes && Array.isArray(r.acoes)) { const _el = document.getElementById('cAcoes'); if (_el) _el.value = r.acoes.join('\n'); }
+        if (r.pecas) { const _el = document.getElementById('cPecas'); if (_el) _el.value = r.pecas || ''; }
 
         // Baterias
-        if (r.bateriasQtd) document.getElementById('dBatQtd').value = r.bateriasQtd || '';
-        if (r.bateriasTensao) document.getElementById('dBatTensao').value = r.bateriasTensao || '';
-        if (r.bateriasObs) document.getElementById('dObs').value = r.bateriasObs || '';
+        if (r.bateriasQtd) { const _el = document.getElementById('dBatQtd'); if (_el) _el.value = r.bateriasQtd || ''; }
+        if (r.bateriasTensao) { const _el = document.getElementById('dBatTensao'); if (_el) _el.value = r.bateriasTensao || ''; }
+        if (r.bateriasObs) { var _dObs = document.getElementById('dObs'); if (_dObs) _dObs.value = r.bateriasObs || ''; }
 
         showToast('Rascunho restaurado. Continue preenchendo.');
         try { logInfo('Rascunho restaurado', { numero: r.numero || 'N/A' }); } catch(e){}
@@ -4689,7 +4732,8 @@ if (logoBase64) {
   btnGerarPdfLocal.onclick = async ()=>{
     if (!validarObrigatorios()) return;
     ensureNumeroRat();
-    const rAtual = montarRelatorioAtual();
+    var rAtual;
+    try { rAtual = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
     try{
       showLoader('Gerando PDF...');
       await exportarPDF(rAtual);
@@ -4709,7 +4753,7 @@ if (logoBase64) {
         alert('Informe o e-mail do cliente para enviar.');
         return;
       }
-      const r = montarRelatorioAtual();
+      var r; try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
       if (!r || !r.numero){
         alert('Gere o relatório antes de enviar por e-mail.');
         return;
@@ -4751,7 +4795,8 @@ if (logoBase64) {
       alert('Informe o WhatsApp ou telefone do cliente antes de enviar.');
       return;
     }
-    const r = montarRelatorioAtual();
+    var r;
+    try { r = montarRelatorioAtual(); } catch(e){ showToast('Erro ao montar relatório: ' + e.message); return; }
     const msgBase = `Olá, aqui é da ONLINE-ES – Eletroeletrônica. Encaminhamos o Relatório Técnico de Atendimento ao cliente ${r.cliente || ''}, RAT ${r.numero || ''}.`;
     const msg = encodeURIComponent(msgBase);
     window.open(`https://wa.me/${tel}?text=${msg}`,'_blank');
@@ -4783,7 +4828,7 @@ if (logoBase64) {
     const files = Array.from(input.files);
     var totalSize = 0;
     // Calcula tamanho já em preview
-    container.querySelectorAll('.preview-item').forEach(function(el){ totalSize += parseInt(el.dataset.filesize || '0'); });
+    if (container) container.querySelectorAll('.preview-item').forEach(function(el){ totalSize += parseInt(el.dataset.filesize || '0'); });
     
     files.forEach(file=>{
       // Limite por arquivo
@@ -5113,6 +5158,16 @@ if (dUpload)      dUpload.addEventListener('change', ()=>criarPreview(dUpload, d
   }
   aTelefone.addEventListener('input',()=>aplicarMascaraTelefone(aTelefone));
   aWhats.addEventListener('input',()=>aplicarMascaraTelefone(aWhats));
+  // Expor funções críticas globalmente para acesso por outros módulos e safety net
+  window.montarRelatorioAtual = montarRelatorioAtual;
+  window.validarObrigatorios  = validarObrigatorios;
+  if (typeof exportarPDF === 'function')       window.exportarPDF          = exportarPDF;
+  if (typeof saveRelatorios === 'function')    window.saveRelatorios       = saveRelatorios;
+  if (typeof ensureNumeroRat === 'function')   window.ensureNumeroRat      = ensureNumeroRat;
+  if (typeof showLoader === 'function')        window.showLoader           = showLoader;
+  if (typeof hideLoader === 'function')        window.hideLoader           = hideLoader;
+  if (typeof renderLista === 'function')       window.renderLista          = renderLista;
+  if (typeof atualizarDashboard === 'function') window.atualizarDashboard  = atualizarDashboard;
   function formatarWhatsParaEnvio(tel){
     if (!tel) return WHATSAPP_PADRAO;
     let dig = tel.replace(/\D/g,'');
@@ -7180,6 +7235,183 @@ async function fazerLogin(){
   });
 })();
 
+</script>
+
+
+<script>
+// ============================================================
+// SAFETY NET: Re-registra handlers dos botões finais caso o
+// script principal tenha lançado uma exceção antes de chegar neles
+// ============================================================
+(function(){
+  function safeGet(id){ return document.getElementById(id); }
+
+  function ensureHandler(id, fn){
+    var el = safeGet(id);
+    // Only override if the main script didn't register a handler
+    if (el && !el.onclick){
+      el.onclick = fn;
+      el._safeHandlerSet = true;
+      console.log('[SAFETY NET] Handler registrado para:', id);
+    }
+  }
+
+  function waitReady(fn){
+    if (document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', fn);
+    } else {
+      fn();
+    }
+  }
+
+  waitReady(function(){
+    // Salvar relatório
+    ensureHandler('btnSalvarLocal', function(){
+      var ul = window.usuarioLogado;
+      if (!ul){ alert('Faça login novamente.'); return; }
+      if (typeof window.validarObrigatorios === 'function' && !window.validarObrigatorios()) return;
+      if (typeof window.montarRelatorioAtual !== 'function'){
+        alert('Erro interno: módulo de relatórios não carregado. Recarregue a página.');
+        return;
+      }
+      try {
+        if (typeof window.ensureNumeroRat === 'function') window.ensureNumeroRat();
+        var novo = window.montarRelatorioAtual();
+        var relatorios = window.relatorios || [];
+        relatorios.push(novo);
+        window.relatorios = relatorios;
+        if (typeof window.saveRelatorios === 'function') window.saveRelatorios(relatorios);
+        if (typeof window.salvarRelatorioNoFirestore === 'function'){
+          try { window.salvarRelatorioNoFirestore(novo); } catch(e){}
+        }
+        // Feedback visual
+        var toast = document.getElementById('toast');
+        if (toast){
+          toast.textContent = navigator.onLine
+            ? '✅ Relatório salvo com sucesso!'
+            : '📶 Sem internet — salvo localmente.';
+          toast.style.display = 'block';
+          setTimeout(function(){ toast.style.display = 'none'; }, 3000);
+        } else {
+          alert(navigator.onLine ? 'Relatório salvo com sucesso!' : 'Salvo localmente (sem internet).');
+        }
+        if (typeof window.renderLista === 'function') try { window.renderLista(); } catch(e){}
+        if (typeof window.atualizarDashboard === 'function') try { window.atualizarDashboard(); } catch(e){}
+      } catch(err){
+        console.error('Erro ao salvar relatório:', err);
+        alert('Erro ao salvar: ' + err.message);
+      }
+    });
+
+    // Salvar rascunho
+    ensureHandler('btnSalvarRascunho', function(){
+      if (!window.usuarioLogado){ alert('Faça login novamente.'); return; }
+      try {
+        if (typeof window.ensureNumeroRat === 'function') window.ensureNumeroRat();
+        var rascunho = window.montarRelatorioAtual ? window.montarRelatorioAtual() : null;
+        if (!rascunho){ alert('Erro ao montar rascunho.'); return; }
+        rascunho._rascunho = true;
+        rascunho._rascunhoData = new Date().toISOString();
+        localStorage.setItem('online-es-rascunho-v1', JSON.stringify(rascunho));
+        var toast = document.getElementById('toast');
+        if (toast){
+          toast.textContent = '📝 Rascunho salvo! Continue depois.';
+          toast.style.display = 'block';
+          setTimeout(function(){ toast.style.display = 'none'; }, 3000);
+        } else {
+          alert('Rascunho salvo!');
+        }
+      } catch(err){ alert('Erro ao salvar rascunho: ' + err.message); }
+    });
+
+    // Gerar PDF
+    ensureHandler('btnGerarPdfLocal', async function(){
+      if (typeof window.validarObrigatorios === 'function' && !window.validarObrigatorios()) return;
+      if (typeof window.exportarPDF !== 'function'){
+        alert('Módulo de PDF não carregado. Verifique sua conexão.');
+        return;
+      }
+      try {
+        if (typeof window.ensureNumeroRat === 'function') window.ensureNumeroRat();
+        var r = window.montarRelatorioAtual ? window.montarRelatorioAtual() : null;
+        if (!r){ alert('Erro ao montar relatório para PDF.'); return; }
+        if (typeof window.showLoader === 'function') window.showLoader('Gerando PDF...');
+        await window.exportarPDF(r);
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+        var toast = document.getElementById('toast');
+        if (toast){
+          toast.textContent = '📄 PDF gerado com sucesso!';
+          toast.style.display = 'block';
+          setTimeout(function(){ toast.style.display = 'none'; }, 3000);
+        }
+      } catch(err){
+        if (typeof window.hideLoader === 'function') window.hideLoader();
+        alert('Erro ao gerar PDF: ' + err.message);
+      }
+    });
+
+    // Enviar por e-mail
+    ensureHandler('btnEnviarEmail', function(){
+      var emailEl = document.getElementById('aEmailCliente');
+      var email = emailEl ? emailEl.value.trim() : '';
+      if (!email){ alert('Informe o e-mail do cliente para enviar.'); return; }
+      if (typeof window.montarRelatorioAtual !== 'function'){ alert('Módulo não carregado.'); return; }
+      try {
+        var r = window.montarRelatorioAtual();
+        var corpo = encodeURIComponent(
+          'Relatório ' + (r.numero || '') + '\nCliente: ' + (r.cliente || '') +
+          '\nTécnico: ' + (r.tecnico || '') + '\nData: ' + (r.dataHoraBr || '')
+        );
+        var assunto = encodeURIComponent('Relatório Técnico ' + (r.numero || ''));
+        window.open('mailto:' + email + '?subject=' + assunto + '&body=' + corpo);
+        var toast = document.getElementById('toast');
+        if (toast){
+          toast.textContent = '📧 Abrindo cliente de e-mail...';
+          toast.style.display = 'block';
+          setTimeout(function(){ toast.style.display = 'none'; }, 3000);
+        }
+      } catch(err){ alert('Erro ao enviar e-mail: ' + err.message); }
+    });
+
+    // Enviar via WhatsApp
+    ensureHandler('btnWhatsLocal', function(){
+      var wEl = document.getElementById('aWhats');
+      var tEl = document.getElementById('aTelefone');
+      var raw = (wEl && wEl.value) ? wEl.value : (tEl && tEl.value ? tEl.value : '');
+      var tel = raw.replace(/\D/g,'');
+      if (!tel){ alert('Informe o WhatsApp ou telefone do cliente antes de enviar.'); return; }
+      if (tel.length <= 11) tel = '55' + tel;
+      if (typeof window.montarRelatorioAtual !== 'function'){ alert('Módulo não carregado.'); return; }
+      try {
+        var r = window.montarRelatorioAtual();
+        var msg = encodeURIComponent(
+          'Olá! Segue o relatório técnico\n' +
+          'RAT: ' + (r.numero || '') + '\n' +
+          'Técnico: ' + (r.tecnico || '') + '\n' +
+          'Data: ' + (r.dataHoraBr || '')
+        );
+        window.open('https://wa.me/' + tel + '?text=' + msg, '_blank');
+        var toast = document.getElementById('toast');
+        if (toast){
+          toast.textContent = '💬 Abrindo WhatsApp...';
+          toast.style.display = 'block';
+          setTimeout(function(){ toast.style.display = 'none'; }, 3000);
+        }
+      } catch(err){ alert('Erro ao abrir WhatsApp: ' + err.message); }
+    });
+
+    // Expor funções críticas globalmente para o safety net funcionar
+    if (typeof validarObrigatorios === 'function') window.validarObrigatorios = validarObrigatorios;
+    if (typeof montarRelatorioAtual === 'function') window.montarRelatorioAtual = montarRelatorioAtual;
+    if (typeof exportarPDF === 'function') window.exportarPDF = exportarPDF;
+    if (typeof saveRelatorios === 'function') window.saveRelatorios = saveRelatorios;
+    if (typeof ensureNumeroRat === 'function') window.ensureNumeroRat = ensureNumeroRat;
+    if (typeof showLoader === 'function') window.showLoader = showLoader;
+    if (typeof hideLoader === 'function') window.hideLoader = hideLoader;
+    if (typeof renderLista === 'function') window.renderLista = renderLista;
+    if (typeof atualizarDashboard === 'function') window.atualizarDashboard = atualizarDashboard;
+  });
+})();
 </script>
 
 </body>
