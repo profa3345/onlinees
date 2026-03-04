@@ -1609,6 +1609,16 @@ html[data-role="technician"] nav button {
   }
   window.salvarUsuarioNoFirestore = salvarUsuarioNoFirestore;
 
+  // Sincroniza usuário modificado no Firestore (por username)
+  function _syncUsuarioFirestore(username) {
+    try {
+      const u = (window.usuarios || []).find(x => x.username === username);
+      if (u && typeof salvarUsuarioNoFirestore === 'function') {
+        salvarUsuarioNoFirestore(u);
+      }
+    } catch(e) { console.warn('_syncUsuarioFirestore:', e); }
+  }
+
   async function removerUsuarioDoFirestore(username) {
     if (!db) return;
     try {
@@ -1901,6 +1911,12 @@ html[data-role="technician"] nav button {
     if (!db) return [];
     try {
       const snap = await db.collection("onlineEsRelatorios").get();
+      if (snap.empty) {
+        // Firestore vazio — retorna o que tem local
+        var raw = localStorage.getItem(STORAGE_REPORTS);
+        return raw ? JSON.parse(raw) || [] : [];
+      }
+
       var firestoreRats = [];
       snap.forEach(function(docRef) {
         var d = docRef.data() || {};
@@ -1909,25 +1925,26 @@ html[data-role="technician"] nav button {
         firestoreRats.push(d);
       });
 
-      // Merge: combina local + Firestore sem duplicar (por id)
+      // Firestore é fonte da verdade: pega tudo do Firestore
+      // Preserva apenas relatórios locais que NÃO estão no Firestore (offline/pendentes)
       var localRaw = localStorage.getItem(STORAGE_REPORTS);
       var localRats = localRaw ? JSON.parse(localRaw) || [] : [];
-      var idsLocais = {};
-      localRats.forEach(function(r) { if (r.id) idsLocais[r.id] = true; });
+      var idsFirestore = {};
+      firestoreRats.forEach(function(r) { if (r.id) idsFirestore[r.id] = true; });
 
-      var novos = 0;
-      firestoreRats.forEach(function(r) {
-        if (!idsLocais[r.id]) {
-          localRats.push(r);
-          novos++;
-        }
+      // Pendentes locais que ainda não foram ao Firestore
+      var soPendentes = localRats.filter(function(r) {
+        return r.id && !idsFirestore[r.id];
       });
 
-      if (novos > 0) {
-        localStorage.setItem(STORAGE_REPORTS, JSON.stringify(localRats));
-        console.log("syncRelatoriosFromFirestore:", novos, "novos relatórios do Firestore.");
-      }
-      return localRats;
+      // Lista final: Firestore + pendentes locais, sem deletados
+      var merged = firestoreRats
+        .filter(function(r) { return !r._deleted; })
+        .concat(soPendentes);
+
+      localStorage.setItem(STORAGE_REPORTS, JSON.stringify(merged));
+      console.log("syncRelatoriosFromFirestore:", firestoreRats.length, "do Firestore,", soPendentes.length, "só locais.");
+      return merged;
     } catch(e) {
       console.error("Erro em syncRelatoriosFromFirestore:", e);
       return [];
@@ -3161,12 +3178,22 @@ function autoFillCamposAtendimento(){
     if (navigator.onLine && typeof syncColecoesFromFirestoreOnLogin === 'function') {
       syncColecoesFromFirestoreOnLogin().then(function() {
         try {
+          // Recarrega variáveis globais do localStorage após sync
+          relatorios = loadRelatorios() || [];
+          clientes   = loadClientes()   || [];
+          try { equipamentos = loadEquipamentos() || []; } catch(e) {}
+
+          // Re-renderiza tudo com dados frescos do Firestore
           if (isSupervisorOrAdmin(window.usuarioLogado)) {
-            renderUsuarios();
-            renderClientes();
-            renderEquipamentos();
+            try { renderUsuarios(); }    catch(e) {}
+            try { renderClientes(); }    catch(e) {}
+            try { renderEquipamentos(); } catch(e) {}
+            try { renderLista(); }       catch(e) {}
+            try { atualizarDashboard(); } catch(e) {}
           }
-        } catch(e) {}
+          try { popularSelectClientes(); } catch(e) {}
+          console.log('✅ Re-renderizado após sync do Firestore.');
+        } catch(e) { console.warn('Falha ao re-renderizar após sync:', e); }
       }).catch(function(e){ console.warn('Sync falhou:', e); });
     }
 
@@ -3706,6 +3733,7 @@ function renderUsuarios(){
         u.username === user ? ({...u, password:'', _salt:'', mustChangePassword:true}) : u
       );
       saveUsers(usuarios); 
+      _syncUsuarioFirestore(user);
       renderUsuarios(); 
       showToast('Senha resetada com sucesso.');
       try { logInfo('Senha de usuário resetada', { usuario: user }); } catch(e){}
@@ -3776,6 +3804,7 @@ function renderUsuarios(){
         return {...x, fullName: (novoNome||u.fullName), username: (novoUser||u.username), role: novoRole};
       });
       saveUsers(usuarios);
+      _syncUsuarioFirestore(user);
       renderUsuarios();
       showToast('Usuário atualizado com sucesso.');
         try { logInfo('Usuário atualizado', { usuario: user || '' }); } catch(e){}
@@ -3788,7 +3817,7 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
         if (!isSupervisorOrAdmin()){ alert('Permissão negada.'); return; }
         if (!confirm('Confirmar reset de senha para "'+user+'"? O usuário definirá nova senha no próximo login.')) return;
         usuarios = (usuarios || []).map(u=> u.username===user ? ({...u,password:'',_salt:'',mustChangePassword:true}) : u);
-        saveUsers(usuarios); renderUsuarios(); showToast('Senha resetada com sucesso.');
+        saveUsers(usuarios); _syncUsuarioFirestore(user); renderUsuarios(); showToast('Senha resetada com sucesso.');
       try { logInfo('Senha de usuário resetada', { usuario: user }); } catch(e){}
       };
     });
@@ -3856,6 +3885,7 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
           return {...x, fullName: (novoNome||u.fullName), username: (novoUser||u.username), role: novoRole};
         });
         saveUsers(usuarios);
+        _syncUsuarioFirestore(user);
         renderUsuarios();
         showToast('Usuário atualizado com sucesso.');
         try { logInfo('Usuário atualizado', { usuario: user || '' }); } catch(e){}
@@ -3872,6 +3902,7 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
           return {...u, active: ativoAgora};
         });
         saveUsers(usuarios);
+        _syncUsuarioFirestore(user);
         renderUsuarios();
         showToast('Status de usuário atualizado.');
         try { logInfo('Status de usuário alterado', {}); } catch(e){}
@@ -3903,6 +3934,7 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
         if (confirm('Remover equipamento selecionado?')){
           equipamentos = (equipamentos||[]).filter(e=>String(e.id)!==String(id));
           saveEquipamentos(equipamentos);
+          if (db) { try { db.collection('onlineEsEquipamentos').doc(String(id)).delete(); } catch(e){} }
           renderEquipamentos();
           popularSelectEquipamentosEstoque();
           showToast && showToast('Equipamento removido.');
@@ -3950,6 +3982,8 @@ document.querySelectorAll('[data-reset]').forEach(btn=>{
           };
         });
         saveEquipamentos(equipamentos);
+        const _eqAtual = equipamentos.find(e=>String(e.id)===String(id));
+        if (_eqAtual && window.salvarEquipamentoNoFirestore) { try { window.salvarEquipamentoNoFirestore(_eqAtual); } catch(e){} }
         renderEquipamentos();
         popularSelectEquipamentosEstoque();
         showToast && showToast('Equipamento atualizado.');
@@ -3989,6 +4023,7 @@ function renderClientes(){
       if (!confirm('Remover cliente "'+nome+'"?')) return;
       clientes = (clientes || []).filter(x => (x.nome || '') !== nome);
       saveClientes(clientes);
+      if (db) { try { const _nId = nome.toLowerCase().replace(/[^a-z0-9]/g,'_'); db.collection('onlineEsClientes').where('nome','==',nome).get().then(s=>s.forEach(d=>d.ref.delete())); } catch(e){} }
       renderClientes();
       if (typeof popularSelectClientes === 'function') popularSelectClientes();
       if (typeof popularBuscaTecnicoEmpresa === 'function') popularBuscaTecnicoEmpresa();
