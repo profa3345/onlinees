@@ -238,7 +238,16 @@
       .filters{flex-direction:column}
       .filters .col{min-width:0!important;width:100%!important}
       /* Font controls */
-
+      /* Rows: somente dentro do #app */
+      #app .row{align-items:stretch!important}
+      #app .row[style]{align-items:stretch!important}
+      #app .col[style*="max-width"]{max-width:100%!important}
+      #app .col[style*="justify-content:flex-end"]{justify-content:flex-start!important}
+      #app .filters{flex-direction:column}
+      #app .filters .col{min-width:0!important;width:100%!important}
+      /* Login: garantir visível e centralizado */
+      .login-screen{padding:12px!important}
+      .login-box{max-width:100%!important;width:100%!important}
     }
   
 .pill-toggle{
@@ -594,7 +603,7 @@ html[data-role="technician"] nav button {
             </div>
           </div>
 
-          <div class="row" style="margin-top:6px;align-items:flex-end;">
+          <div class="row" style="margin-top:6px;align-items:flex-start;">
             <div class="col">
               <label id="labelDocCliente">CNPJ do cliente</label>
 
@@ -620,7 +629,7 @@ html[data-role="technician"] nav button {
             </div>
           </div>
 
-          <div class="row" style="margin-top:6px;align-items:flex-end;">
+          <div class="row" style="margin-top:6px;align-items:flex-start;">
             <div class="col">
               <label>Endereço</label>
               <input id="aEndereco" style="width:100%;padding:6px 9px;border:1px solid rgba(148,163,184,.35);border-radius:12px;color:#0f172a;font-weight:500;">
@@ -1228,7 +1237,7 @@ html[data-role="technician"] nav button {
 <div class="section-card" id="configLogo">
 <div style="height:1px;background:rgba(148,163,184,.25);margin:12px 0;"></div>
           <h4 style="margin:6px 0 8px 0;font-size:.9rem;display:flex;gap:6px;align-items:center;"><i class="ri-image-add-line"></i> Logo da empresa (PDF e telas)</h4>
-          <div class="row" style="align-items:flex-end;gap:10px;">
+          <div class="row" style="align-items:flex-start;gap:10px;">
             <div class="col" style="max-width:min(300px,100%);">
               <label>Selecionar imagem (PNG/JPG)</label>
               <input type="file" id="inputLogoFile" accept="image/*" style="border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 10px;color:#0f172a;background:#fff;">
