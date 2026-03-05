@@ -1255,6 +1255,10 @@ html[data-role="technician"] nav button {
           </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <button class="btn small" id="btnBackup"><i class="ri-download-2-line"></i> Fazer backup agora</button>
+            <button class="btn small" id="btnDiagFirebase" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">
+              <i class="ri-stethoscope-line"></i> Diagnóstico Firebase
+            </button>
+            <div id="diagFirebaseResult" style="display:none;margin-top:10px;padding:10px 14px;border-radius:8px;font-size:.78rem;background:#f8fafc;border:1px solid #e2e8f0;white-space:pre-line;font-family:monospace;max-height:300px;overflow-y:auto;"></div>
             <button class="btn small" id="btnListarBackups" style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0;"><i class="ri-database-2-line"></i> Restaurar do Banco</button>
             <label class="btn small" id="btnRestaurarWrap" style="display:none;cursor:pointer;">
               <i class="ri-upload-2-line"></i> Restaurar backup
@@ -3145,6 +3149,91 @@ function autoFillCamposAtendimento(){
     // DEBUG TEMPORÁRIO: alert para confirmar visualmente que entrou
     try { showToast('Login OK: ' + (user.fullName || user.username)); } catch(e){}
   }
+
+  // === DIAGNÓSTICO FIREBASE ===
+  document.addEventListener('DOMContentLoaded', function() {
+    var btnDiag = document.getElementById('btnDiagFirebase');
+    var diagResult = document.getElementById('diagFirebaseResult');
+    if (!btnDiag || !diagResult) return;
+
+    btnDiag.onclick = async function() {
+      diagResult.style.display = 'block';
+      diagResult.style.background = '#f8fafc';
+      diagResult.textContent = '🔍 Iniciando diagnóstico...';
+      var log = [];
+
+      function linha(txt) { log.push(txt); diagResult.textContent = log.join('\n'); }
+
+      // 1. Firebase SDK carregado?
+      linha('1. Firebase SDK: ' + (typeof firebase !== 'undefined' ? '✅ carregado' : '❌ NÃO carregado'));
+
+      // 2. db inicializado?
+      var _db = (typeof window._getDb === 'function') ? window._getDb() : null;
+      linha('2. Firestore db: ' + (_db ? '✅ inicializado' : '❌ NULL'));
+
+      // 3. Firebase Auth?
+      var _auth = window._firebaseAuth;
+      var _user = _auth && _auth.currentUser;
+      linha('3. Firebase Auth: ' + (_auth ? '✅ disponível' : '❌ não disponível'));
+      linha('   Usuário autenticado: ' + (_user ? '✅ ' + _user.email : '❌ não autenticado (request.auth = null)'));
+
+      // 4. Testar READ via REST (sem auth)
+      linha('4. Teste REST leitura (onlineEsClientes)...');
+      try {
+        const pid = firebaseConfig.projectId;
+        const key = firebaseConfig.apiKey;
+        const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/onlineEsClientes?key=${key}&pageSize=3`;
+        const r = await fetch(url);
+        const json = await r.json();
+        if (r.ok) {
+          const docs = json.documents || [];
+          linha('   ✅ REST leitura OK — ' + docs.length + ' doc(s) encontrado(s)');
+          docs.forEach(d => {
+            const nome = d.fields && d.fields.nome && d.fields.nome.stringValue;
+            linha('     • ' + (nome || d.name.split('/').pop()));
+          });
+        } else {
+          linha('   ❌ REST leitura ERRO: ' + (json.error && json.error.message || r.status));
+        }
+      } catch(e) { linha('   ❌ REST leitura EXCEÇÃO: ' + e.message); }
+
+      // 5. Testar READ via SDK
+      if (_db) {
+        linha('5. Teste SDK leitura (onlineEsClientes)...');
+        try {
+          const snap = await _db.collection('onlineEsClientes').limit(3).get();
+          linha('   ✅ SDK leitura OK — ' + snap.size + ' doc(s)');
+          snap.forEach(d => linha('     • ' + (d.data().nome || d.id)));
+        } catch(e) {
+          linha('   ❌ SDK leitura ERRO: ' + (e.code || e.message));
+          if (e.code === 'permission-denied') linha('   ⚠️ CAUSA: Firestore rules bloqueando (request.auth = null)');
+        }
+      }
+
+      // 6. Testar WRITE via REST
+      linha('6. Teste REST escrita (onlineEsDiag)...');
+      try {
+        const pid = firebaseConfig.projectId;
+        const key = firebaseConfig.apiKey;
+        const url = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents/onlineEsDiag/teste?key=${key}`;
+        const r = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: { ok: { booleanValue: true }, ts: { stringValue: new Date().toISOString() } } })
+        });
+        const json = await r.json();
+        if (r.ok) linha('   ✅ REST escrita OK');
+        else linha('   ❌ REST escrita ERRO: ' + (json.error && json.error.message || r.status));
+      } catch(e) { linha('   ❌ REST escrita EXCEÇÃO: ' + e.message); }
+
+      // 7. Resumo
+      linha('');
+      linha('=== RESUMO ===');
+      if (!_user) linha('⚠️ Firebase Auth não ativo — Firestore SDK bloqueado pelas regras');
+      if (!_db) linha('⚠️ db = null — Firebase SDK não inicializou');
+      linha('Usuário logado local: ' + ((window.usuarioLogado && window.usuarioLogado.username) || 'nenhum'));
+    };
+  });
 
   function limparMenu(){
     [mNovo,mMeus,mPainel,mCadastros,mSistema].forEach(b=>{ if (b) b.classList.remove('active'); });
